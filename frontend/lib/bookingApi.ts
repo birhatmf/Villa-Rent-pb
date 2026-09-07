@@ -3,7 +3,7 @@
 import { req } from './http';
 
 export type BookingStatus = 'HOLD' | 'CONFIRMED' | 'EXPIRED' | 'CANCELLED';
-export type BlockKind = 'MANUAL' | 'MAINTENANCE' | 'OWNER_USE';
+export type BlockKind = 'MANUAL' | 'MAINTENANCE' | 'OWNER_USE' | 'ICAL';
 
 export type CalendarEvent = {
   id: string;
@@ -23,6 +23,10 @@ export type CalendarEvent = {
   holdExpiresAt?: string | null;
   totalAmount?: number;
   currency?: string;
+  sourceId?: string | null;
+  syncStatus?: string | null;
+  lastSyncAt?: string | null;
+  syncError?: string | null;
 };
 
 export type CalendarData = {

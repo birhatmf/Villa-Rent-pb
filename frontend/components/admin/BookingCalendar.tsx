@@ -19,6 +19,7 @@ const EVENT_LABEL: Record<string, string> = {
   MANUAL: 'Satışa kapalı',
   MAINTENANCE: 'Bakım',
   OWNER_USE: 'Ev sahibi kullanımı',
+  ICAL: 'Dış takvim',
 };
 const AUDIT_LABEL: Record<string, string> = {
   HOLD_CREATED: 'Bekletme oluşturdu',
@@ -34,6 +35,15 @@ const AUDIT_LABEL: Record<string, string> = {
   PRICE_RULE_REMOVED: 'Sezon fiyatını kaldırdı',
   VILLA_RULES_CHANGED: 'Satış kurallarını değiştirdi',
   VILLA_STATUS_CHANGED: 'Villa durumunu değiştirdi',
+  ICAL_SOURCE_CREATED: 'iCal kaynağı bağladı',
+  ICAL_SOURCE_PAUSED: 'iCal kaynağını duraklattı',
+  ICAL_SOURCE_RESUMED: 'iCal kaynağını sürdürdü',
+  ICAL_SOURCE_REMOVED: 'iCal kaynağını kaldırdı',
+  ICAL_EXPORT_TOKEN_ROTATED: 'iCal export bağlantısını yeniledi',
+  ICAL_SYNC_COMPLETED: 'Dış takvimi eşitledi',
+  ICAL_BLOCK_CREATED: 'Dış takvim blokajı ekledi',
+  ICAL_BLOCK_UPDATED: 'Dış takvim blokajını güncelledi',
+  ICAL_BLOCK_RELEASED: 'Dış takvim blokajını kaldırdı',
 };
 
 const iso = (date: Date) => date.toISOString().slice(0, 10);
@@ -192,6 +202,7 @@ export default function BookingCalendar() {
           <Legend color="bg-sky-700" label="Bakım" />
           <Legend color="bg-violet-700" label="Ev sahibi" />
           <Legend color="bg-stone-500" label="Kapalı" />
+          <Legend color="bg-fuchsia-700" label="Dış takvim" />
         </div>
       </div>
 
@@ -320,7 +331,13 @@ function EventPanel({ event, relatedEvents, onSelect, form, setForm, cancelNote,
       <div className="border-t border-line pt-3"><input placeholder="İptal gerekçesi" value={cancelNote} onChange={(e) => setCancelNote(e.target.value)} className={INPUT} /><button disabled={busy || cancelNote.trim().length < 2} onClick={onCancel} className="mt-2 text-[0.78rem] text-red-700 disabled:opacity-40">Rezervasyonu iptal et</button></div>
     </div> : <div className="mt-5">
       {event.note && <p className="rounded-lg bg-sand/60 p-3 text-[0.8rem] text-muted">{event.note}</p>}
-      <button disabled={busy} onClick={onRelease} className="mt-4 w-full rounded-full border border-ink py-2.5 text-[0.82rem] text-ink hover:bg-ink hover:text-canvas disabled:opacity-40">Bu nedeni kaldır</button>
+      {event.kind === 'ICAL' ? (
+        <div className="mt-4 rounded-lg border border-fuchsia-200 bg-fuchsia-50 p-3 text-[0.76rem] leading-relaxed text-fuchsia-900">
+          Bu kayıt dış kaynaktan gelir. Kaynakta düzeltip villa ekranından yeniden eşitleyin.
+          {event.lastSyncAt && <span className="mt-1 block">Son başarı: {new Date(event.lastSyncAt).toLocaleString('tr-TR')}</span>}
+          {event.syncError && <span className="mt-1 block text-red-700">Hata: {event.syncError}</span>}
+        </div>
+      ) : <button disabled={busy} onClick={onRelease} className="mt-4 w-full rounded-full border border-ink py-2.5 text-[0.82rem] text-ink hover:bg-ink hover:text-canvas disabled:opacity-40">Bu nedeni kaldır</button>}
       <p className="mt-2 text-[0.7rem] leading-relaxed text-muted">Aynı gün başka bir nedenle kapalıysa tarih kapalı kalır.</p>
     </div>}
   </section>;
@@ -339,9 +356,9 @@ function Legend({ color, label }: { color: string; label: string }) {
 }
 
 function priority(kind: string) {
-  return kind === 'CONFIRMED' ? 0 : kind === 'HOLD' ? 1 : kind === 'MAINTENANCE' ? 2 : kind === 'OWNER_USE' ? 3 : 4;
+  return kind === 'CONFIRMED' ? 0 : kind === 'HOLD' ? 1 : kind === 'ICAL' ? 2 : kind === 'MAINTENANCE' ? 3 : kind === 'OWNER_USE' ? 4 : 5;
 }
 
 function eventColor(kind: string) {
-  return kind === 'CONFIRMED' ? 'bg-olive hover:bg-olive/90' : kind === 'HOLD' ? 'bg-gold hover:bg-gold/90' : kind === 'MAINTENANCE' ? 'bg-sky-700 hover:bg-sky-600' : kind === 'OWNER_USE' ? 'bg-violet-700 hover:bg-violet-600' : 'bg-stone-500 hover:bg-stone-400';
+  return kind === 'CONFIRMED' ? 'bg-olive hover:bg-olive/90' : kind === 'HOLD' ? 'bg-gold hover:bg-gold/90' : kind === 'ICAL' ? 'bg-fuchsia-700 hover:bg-fuchsia-600' : kind === 'MAINTENANCE' ? 'bg-sky-700 hover:bg-sky-600' : kind === 'OWNER_USE' ? 'bg-violet-700 hover:bg-violet-600' : 'bg-stone-500 hover:bg-stone-400';
 }

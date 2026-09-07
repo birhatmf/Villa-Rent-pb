@@ -183,6 +183,7 @@ const PUBLIC_DETAIL_SELECT = {
   reviewCount: true,
   timezone: true,
   salesStatus: true,
+  bookingMode: true,
   region: { select: { name: true, slug: true } },
   concepts: { select: { id: true, name: true, slug: true } },
   rooms: {
@@ -335,6 +336,7 @@ export class VillasService {
 
     if (dates) {
       const now = new Date();
+      const staleBefore = new Date(now.getTime() - 60 * 60_000);
       const coveringRule = {
         startDate: { lte: dates.checkIn },
         endDate: { gt: dates.checkIn },
@@ -347,6 +349,19 @@ export class VillasService {
               state: 'ACTIVE',
               startDate: { lt: dates.checkOut },
               endDate: { gt: dates.checkIn },
+            },
+          },
+        },
+        {
+          icalSources: {
+            none: {
+              required: true,
+              deletedAt: null,
+              OR: [
+                { status: { not: 'ACTIVE' } },
+                { lastSuccessAt: null },
+                { lastSuccessAt: { lte: staleBefore } },
+              ],
             },
           },
         },
@@ -510,6 +525,7 @@ export class VillasService {
       select: {
         id: true,
         salesStatus: true,
+        bookingMode: true,
         minNights: true,
         checkInWeekday: true,
         maxAdults: true,
@@ -526,6 +542,10 @@ export class VillasService {
             endDate: { gt: dates.checkIn },
           },
           select: { startDate: true, endDate: true },
+        },
+        icalSources: {
+          where: { required: true, deletedAt: null },
+          select: { status: true, lastSuccessAt: true },
         },
       },
     });
@@ -544,20 +564,26 @@ export class VillasService {
       select: { checkIn: true, checkOut: true },
     });
 
+    const result = evaluateAvailability({
+      ...villa,
+      blockedDates: [
+        ...villa.blockedDates,
+        ...bookingRanges.map((booking) => ({ startDate: booking.checkIn, endDate: booking.checkOut })),
+      ],
+    }, dates, {
+      adults: input.adults ?? 1,
+      children: input.children ?? 0,
+      infants: input.infants ?? 0,
+    });
+    if (villa.icalSources.some((source) => source.status !== 'ACTIVE' || !source.lastSuccessAt || source.lastSuccessAt.getTime() <= Date.now() - 60 * 60_000)) {
+      result.reasons.push('SYNC_UNHEALTHY');
+      result.available = false;
+    }
     return {
       from: formatCalendarDate(dates.checkIn),
       to: formatCalendarDate(dates.checkOut),
-      ...evaluateAvailability({
-        ...villa,
-        blockedDates: [
-          ...villa.blockedDates,
-          ...bookingRanges.map((booking) => ({ startDate: booking.checkIn, endDate: booking.checkOut })),
-        ],
-      }, dates, {
-        adults: input.adults ?? 1,
-        children: input.children ?? 0,
-        infants: input.infants ?? 0,
-      }),
+      bookingMode: villa.bookingMode,
+      ...result,
     };
   }
 
@@ -835,6 +861,9 @@ export class VillasService {
       await this.assertVillaScope(tx, villaId, hostId);
       const block = await tx.villaBlockedDate.findUnique({ where: { id: blockId } });
       if (!block || block.villaId !== villaId) throw new NotFoundException('Bloke tarih bulunamadı.');
+      if (block.kind === 'ICAL') {
+        throw new ConflictException('Dış takvim kaydı kaynak eşitlenerek yönetilmelidir.');
+      }
       if (block.version !== expectedVersion) {
         throw new ConflictException({
           message: 'Takvim kaydı başka bir işlem tarafından değiştirildi. Sayfayı yenileyin.',

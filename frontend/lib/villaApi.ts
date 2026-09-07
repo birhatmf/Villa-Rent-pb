@@ -38,11 +38,42 @@ export type VillaBlockedDate = {
   id: string;
   startDate: string;
   endDate: string;
-  kind: 'MANUAL' | 'MAINTENANCE' | 'OWNER_USE';
+  kind: 'MANUAL' | 'MAINTENANCE' | 'OWNER_USE' | 'ICAL';
   state: 'ACTIVE' | 'RELEASED';
   note: string | null;
   releasedAt: string | null;
   version: number;
+};
+
+export type IcalSyncRun = {
+  id: string;
+  status: 'RUNNING' | 'SUCCESS' | 'NOT_MODIFIED' | 'FAILED' | 'REVIEW';
+  addedCount: number;
+  updatedCount: number;
+  releasedCount: number;
+  conflictCount: number;
+  errorCode: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+export type IcalSource = {
+  id: string;
+  villaId: string;
+  label: string;
+  required: boolean;
+  status: 'PENDING' | 'ACTIVE' | 'PAUSED' | 'ERROR' | 'REVIEW';
+  healthy: boolean;
+  urlMasked: string;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  nextSyncAt: string;
+  consecutiveFailures: number;
+  lastErrorCode: string | null;
+  version: number;
+  runs: IcalSyncRun[];
 };
 
 /** Form gönderirken kullanılan şekil — scalar alanların tamamı, oda listesi dahil. */
@@ -107,6 +138,7 @@ export type VillaDetail = Omit<VillaFormInput, 'conceptIds'> & {
   slug: string;
   status: VillaStatus;
   salesStatus: 'OPEN' | 'PAUSED';
+  bookingMode: 'INSTANT' | 'REQUEST';
   timezone: string;
   hostId: string | null;
   capacity: number;
@@ -255,6 +287,38 @@ export function createVillaApi(scope: 'admin' | 'host') {
     calendar: (villaId: string, from: string, to: string) => {
       const qs = new URLSearchParams({ villaId, from, to });
       return req<CalendarData>(`/${scope}/calendar?${qs}`);
+    },
+
+    listIcalSources: (villaId: string) => req<IcalSource[]>(`${base}/${villaId}/ical-sources`),
+
+    previewIcalSource: (villaId: string, url: string) =>
+      req<{ eventCount: number; cancelledCount: number; from: string; to: string; sample: { startDate: string; endDate: string }[] }>(
+        `${base}/${villaId}/ical-sources/preview`,
+        { method: 'POST', body: JSON.stringify({ url }) },
+      ),
+
+    createIcalSource: (villaId: string, data: { label: string; url: string; required: boolean }) =>
+      req<IcalSource[]>(`${base}/${villaId}/ical-sources`, { method: 'POST', body: JSON.stringify(data) }),
+
+    syncIcalSource: (villaId: string, sourceId: string) =>
+      req<{ status: string; errorCode?: string }>(`${base}/${villaId}/ical-sources/${sourceId}/sync`, { method: 'POST' }),
+
+    pauseIcalSource: (villaId: string, sourceId: string, paused: boolean, version: number) =>
+      req<IcalSource[]>(`${base}/${villaId}/ical-sources/${sourceId}/pause`, {
+        method: 'PATCH',
+        body: JSON.stringify({ paused, version }),
+      }),
+
+    removeIcalSource: (villaId: string, sourceId: string, version: number, reason: string, releaseBlocks = false) =>
+      req<IcalSource[]>(`${base}/${villaId}/ical-sources/${sourceId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ version, reason, releaseBlocks }),
+      }),
+
+    async rotateIcalExportToken(villaId: string) {
+      const result = await req<{ token: string; path: string }>(`${base}/${villaId}/ical-sources/export-token/rotate`, { method: 'POST' });
+      const origin = API.startsWith('http') ? API : window.location.origin;
+      return { ...result, url: new URL(result.path, origin).toString() };
     },
   };
 }

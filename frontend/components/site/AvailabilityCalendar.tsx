@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 type Range = { startDate: string; endDate: string };
-type Result = { available: boolean; nights: number; minimumNights: number; reasons: string[] };
+type Result = { available: boolean; bookingMode?: 'INSTANT' | 'REQUEST'; nights: number; minimumNights: number; reasons: string[] };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 const DAY = 86_400_000;
@@ -14,6 +14,7 @@ const REASON: Record<string, string> = {
   MIN_STAY: 'Seçilen tarihler minimum konaklama süresini karşılamıyor.',
   CHECKIN_DAY: 'Bu tarihte giriş yapılamıyor.',
   CAPACITY_EXCEEDED: 'Misafir sayısı villa kapasitesini aşıyor.',
+  SYNC_UNHEALTHY: 'Dış takvim henüz güncel doğrulanamadı. Rezervasyon talebi bırakabilirsiniz.',
 };
 
 const iso = (date: Date) => date.toISOString().slice(0, 10);
@@ -115,7 +116,7 @@ export default function AvailabilityCalendar({
             <GuestInput label="Çocuk" value={guests.children} max={maxChildren} onChange={(children) => setGuests({ ...guests, children })} />
             <GuestInput label="Bebek" value={guests.infants} max={maxInfants} onChange={(infants) => setGuests({ ...guests, infants })} />
           </div>
-          {result?.available && <a href={`/iletisim?from=${from}&to=${to}&villa=${encodeURIComponent(slug)}`} className="rounded-full bg-ink px-5 py-3 text-center text-[0.82rem] text-canvas hover:bg-olive">Rezervasyon talebi</a>}
+          {result && (result.available || result.reasons.every((reason) => reason === 'SYNC_UNHEALTHY')) && <a href={`/iletisim?from=${from}&to=${to}&villa=${encodeURIComponent(slug)}`} className="rounded-full bg-ink px-5 py-3 text-center text-[0.82rem] text-canvas hover:bg-olive">Rezervasyon talebi</a>}
         </div>
         {checking && <p className="mt-3 text-[0.8rem] text-muted">Tarihler kontrol ediliyor…</p>}
         {error && <p role="alert" className="mt-3 text-[0.8rem] text-red-700">{error}</p>}

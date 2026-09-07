@@ -1,6 +1,6 @@
 # Villa müsaitliği, rezervasyon ve iCal uygulama planı
 
-Tarih: 6 Eylül 2026. Durum: Aşama 1–3 kodu ile veri-koruyan SQL migration'ları tamamlandı; geliştirme veritabanına uygulandı. Aşama 4–5 plan aşamasında.
+Tarih: 7 Eylül 2026. Durum: Aşama 1–4 teknik teslimi ve veri-koruyan SQL migration'ları tamamlandı; geliştirme veritabanına uygulandı. Aşama 4'ün özel sağlayıcı URL'siyle canlı pilotu ve Aşama 5 plan aşamasında.
 
 Amaç: Aynı villanın aynı gecesinin kendi sistemimizde iki kişiye satılmasını önlemek; ev sahibi, admin ve dış takvim kayıtlarını birlikte değerlendirmek; belirsizliği satış sırasında görünür kılmak. Mevcut NestJS + Prisma + PostgreSQL ve Next.js yapısı korunacak. İlk kapsamda her villa tek rezervasyonla tamamen kiralanır; oda bazlı stok yoktur.
 
@@ -237,6 +237,19 @@ Raporlama: satılmış gece, geçici ayrılmış gece, manuel kapalı gece ve d�
 - Rezervasyon, bekletme, manuel kapatma, fiyat kuralı, satış kuralı ve villa durum değişiklikleri aynı transaction içinde aktör, gerekçe ve sınırlı önce/sonra verisiyle `CalendarAudit` kaydına yazılır.
 - Takvim blokları ve rezervasyon düzenlemeleri güncel `version` bekler. İki görevlinin eşzamanlı değişikliğinde ilk işlem kazanır; eski sürüm `409` alır ve arayüz güncel takvimi yeniden yükler.
 - Migration iki kez uygulanarak tekrar güvenliği doğrulandı; gerçek PostgreSQL yarış/audit/takvim testleri, backend ve frontend üretim derlemeleri ve tarayıcı üzerinden admin/misafir akışları geçti.
+
+### Aşama 4 gerçekleşen teknik teslim
+
+- Villa bazlı `IcalSource` ve `IcalSyncRun` kayıtları eklendi. Kaynak URL'si AES-256-GCM ile şifrelenir; listelerde yalnızca maskeli adres görünür. Aynı kaynak ve sistemin kendi export adresi yeniden import edilemez.
+- PostgreSQL lease kullanan basit işçi yaklaşık 15 dakikalık aralıklarla eşitler. İndirme transaction dışında, sonuç villa kilidi altında uygulanır; süresi geçmiş işçi yeni sonucu ezemez. `ETag`/`Last-Modified`, 304 yanıtı, artan hata beklemesi ve 60 dakikalık sağlık eşiği uygulanır.
+- `ical.js` ile `RRULE`, `RDATE`, `EXDATE`, `RECURRENCE-ID`, açık iptal ve şeffaf olaylar işlenir. İlk pilotta yalnızca güvenli gece sınırı veren `VALUE=DATE` olayları kabul edilir; saatli veya sınırı belirsiz olay kaynağı incelemeye alınır.
+- Dış blok kimliği kaynak + UID + tekrar örneğidir. Tarihi değişen olay aynı kaydı günceller; açık iptal hemen, kaybolan olay iki ardışık eksiksiz görüntüden sonra serbest bırakılır. Boş/bozuk dosya ve indirme hatası mevcut blokları açmaz.
+- Dış olay onaylı rezervasyonla çakışsa da ikisi birlikte saklanır ve senkronizasyon çalışmasında çakışma sayısı görünür. Manuel blok kaldırma ucu dış kaynak kaydını silemez.
+- Import adresleri yalnızca HTTPS olabilir. DNS sonucu ve her yönlendirme özel/yerel/metadata hedeflerine karşı kontrol edilir, doğrulanan IP'ye sabitlenir; süre, yönlendirme, dosya boyutu ve tekrar açılımı sınırlıdır.
+- Onaylı yerel rezervasyonlar ile yerel kapatmalar, villa bazlı 256 bit yenilenebilir token üzerinden müşteri bilgisi ve özel not içermeyen `.ics` olarak yayımlanır. Import edilmiş olaylar ve bekletmeler export edilmez; sabit UID ve ETag kullanılır.
+- Admin ve host villa ekranına önizleme, bağlama, sağlık/geçmiş, elle eşitleme, duraklatma, kontrollü kaldırma ve export token yenileme eklendi. Host erişimi villa sahipliğiyle sınırlıdır.
+- iCal bağlı villa otomatik `REQUEST` moduna geçer. Zorunlu kaynak ilk kez başarıyla eşitlenmediyse veya 60 dakikadan eskiyse public doğrulama ve kesin rezervasyon `SYNC_UNHEALTHY` ile durur; talep akışı açık kalır.
+- Migration aşama 3 şemasının verisiz kopyısında iki kez çalıştırıldı. Parser/güvenlik testleri ile gerçek PostgreSQL üzerinde kimlik güncelleme, iki görüntülü silme, iptal, çakışma, eski işçi ve export gizliliği senaryoları geçti. Gerçek Airbnb/Booking bağlantı pilotu için hesaba ait özel iCal URL'si gerekir.
 
 ## 11. Başlangıç için önerilen ürün kararları
 

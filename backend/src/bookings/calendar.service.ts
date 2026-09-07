@@ -75,6 +75,8 @@ export class CalendarService {
           kind: true,
           note: true,
           version: true,
+          sourceId: true,
+          source: { select: { label: true, status: true, lastSuccessAt: true, lastErrorCode: true } },
         },
       }),
     ]);
@@ -109,9 +111,13 @@ export class CalendarService {
           kind: block.kind,
           startDate: formatCalendarDate(block.startDate),
           endDate: formatCalendarDate(block.endDate),
-          title: block.note || this.blockLabel(block.kind),
+          title: block.kind === 'ICAL' ? block.source?.label ?? 'Dış takvim' : block.note || this.blockLabel(block.kind),
           note: block.note,
           version: block.version,
+          sourceId: block.sourceId,
+          syncStatus: block.source?.status,
+          lastSyncAt: block.source?.lastSuccessAt,
+          syncError: block.source?.lastErrorCode,
         })),
       ],
     };
@@ -142,6 +148,6 @@ export class CalendarService {
   }
 
   private blockLabel(kind: string) {
-    return kind === 'MAINTENANCE' ? 'Bakım' : kind === 'OWNER_USE' ? 'Ev sahibi kullanımı' : 'Satışa kapalı';
+    return kind === 'MAINTENANCE' ? 'Bakım' : kind === 'OWNER_USE' ? 'Ev sahibi kullanımı' : kind === 'ICAL' ? 'Dış takvim' : 'Satışa kapalı';
   }
 }

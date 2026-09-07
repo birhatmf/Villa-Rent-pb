@@ -9,6 +9,7 @@ const VILLA_SELECT = {
   id: true,
   status: true,
   salesStatus: true,
+  bookingMode: true,
   minNights: true,
   checkInWeekday: true,
   maxAdults: true,
@@ -26,6 +27,10 @@ const VILLA_SELECT = {
   blockedDates: {
     where: { state: 'ACTIVE' as const },
     select: { startDate: true, endDate: true },
+  },
+  icalSources: {
+    where: { required: true, deletedAt: null },
+    select: { status: true, lastSuccessAt: true },
   },
 } as const;
 
@@ -97,6 +102,11 @@ export class OccupancyService {
     if (!villa || villa.status !== 'PUBLISHED') throw new NotFoundException('Rezervasyona açık villa bulunamadı.');
 
     const result = evaluateAvailability(villa, dates, guests);
+    const staleBefore = Date.now() - 60 * 60_000;
+    if (villa.icalSources.some((source) => source.status !== 'ACTIVE' || !source.lastSuccessAt || source.lastSuccessAt.getTime() <= staleBefore)) {
+      result.reasons.push('SYNC_UNHEALTHY');
+      result.available = false;
+    }
     const bookingConflict = await tx.booking.findFirst({
       where: {
         villaId,

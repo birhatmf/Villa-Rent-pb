@@ -6,6 +6,7 @@ import { listConcepts, listRegions } from '@/lib/adminApi';
 import {
   createVillaApi,
   DEFAULT_VILLA_FORM,
+  type IcalSource,
   type VillaApi,
   type VillaBlockedDate,
   type VillaDetail,
@@ -56,7 +57,13 @@ const BLOCK_KIND_OPTIONS = [
   { value: 'OWNER_USE', label: 'Ev sahibi kullanımı' },
 ] as const;
 
-const BLOCK_KIND_LABEL = Object.fromEntries(BLOCK_KIND_OPTIONS.map((option) => [option.value, option.label]));
+type ManualBlockKind = Exclude<VillaBlockedDate['kind'], 'ICAL'>;
+const BLOCK_KIND_LABEL: Record<VillaBlockedDate['kind'], string> = {
+  MANUAL: 'Satışa kapalı',
+  MAINTENANCE: 'Bakım',
+  OWNER_USE: 'Ev sahibi kullanımı',
+  ICAL: 'Dış takvim',
+};
 
 export default function VillaForm({
   scope,
@@ -244,13 +251,13 @@ export default function VillaForm({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <nav className="w-52 shrink-0 space-y-0.5 overflow-y-auto border-r border-line bg-sand/20 px-2.5 py-4">
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+        <nav className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-line bg-sand/20 px-2.5 py-2 xl:block xl:w-52 xl:space-y-0.5 xl:overflow-y-auto xl:border-b-0 xl:border-r xl:py-4">
           {TABS.filter((t) => !t.editOnly || !isCreate).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`block w-full rounded-lg px-3 py-2 text-left text-[0.85rem] transition-colors ${
+              className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-[0.85rem] transition-colors xl:block xl:w-full ${
                 tab === t.id ? 'bg-ink text-canvas' : 'text-ink-soft hover:bg-sand-deep/60 hover:text-ink'
               }`}
             >
@@ -260,7 +267,7 @@ export default function VillaForm({
         </nav>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-2xl px-8 py-10">
+          <div className="mx-auto max-w-2xl px-5 py-8 sm:px-8 sm:py-10">
           {tab === 'temel' && (
           <Section n="1" title="Temel Bilgiler">
             <Field label="Başlık" required>
@@ -589,7 +596,7 @@ export default function VillaForm({
             isCreate ? (
               <EditOnlyNotice />
             ) : (
-              <Section n="9" title="Takvim — Manuel Bloklama" hint="Ev sahibinin kendi kullanımı veya bakım için tarih kapatma.">
+              <Section n="9" title="Takvim ve Dış Kanallar" hint="Rezervasyonları, manuel kapatmaları ve iCal kaynaklarını tek yerde yönetin.">
                 <CalendarManager api={api} villaId={villaId!} blocks={villa?.blockedDates ?? []} onChange={load} />
               </Section>
             )
@@ -934,11 +941,16 @@ function CalendarManager({
   const [form, setForm] = useState<{
     startDate: string;
     endDate: string;
-    kind: VillaBlockedDate['kind'];
+    kind: ManualBlockKind;
     note: string;
   }>({ startDate: '', endDate: '', kind: 'MANUAL', note: '' });
   const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [sources, setSources] = useState<IcalSource[]>([]);
+  const [sourceForm, setSourceForm] = useState({ label: '', url: '', required: true });
+  const [preview, setPreview] = useState<{ url: string; eventCount: number; from: string; to: string } | null>(null);
+  const [exportUrl, setExportUrl] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const loadCalendar = useCallback(async () => {
     const today = new Date();
@@ -948,7 +960,12 @@ function CalendarManager({
     setEvents(result.events);
   }, [api, villaId]);
 
+  const loadSources = useCallback(async () => {
+    setSources(await api.listIcalSources(villaId));
+  }, [api, villaId]);
+
   useEffect(() => { void loadCalendar().catch(() => {}); }, [loadCalendar]);
+  useEffect(() => { void loadSources().catch(() => {}); }, [loadSources]);
 
   async function add() {
     setError(null);
@@ -962,6 +979,19 @@ function CalendarManager({
     }
   }
 
+  async function sourceAction(action: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      await Promise.all([loadSources(), loadCalendar()]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'iCal işlemi tamamlanamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       <div className="divide-y divide-line border-y border-line">
@@ -972,9 +1002,9 @@ function CalendarManager({
             </span>
             <span className="text-[0.85rem] text-muted">{event.title}</span>
             <span className="rounded-full bg-sand px-2.5 py-1 text-[0.74rem] text-muted">
-              {event.source === 'BOOKING' ? (event.kind === 'HOLD' ? 'Bekletme' : 'Rezervasyon') : BLOCK_KIND_LABEL[event.kind]}
+              {event.source === 'BOOKING' ? (event.kind === 'HOLD' ? 'Bekletme' : 'Rezervasyon') : BLOCK_KIND_LABEL[event.kind as VillaBlockedDate['kind']]}
             </span>
-            {event.source === 'BLOCK' && <button
+            {event.source === 'BLOCK' && event.kind !== 'ICAL' && <button
               onClick={async () => {
                 await api.removeBlockedDate(villaId, event.id, event.version);
                 onChange();
@@ -992,7 +1022,7 @@ function CalendarManager({
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <TextInput type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
         <TextInput type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
-        <Select value={form.kind} onChange={(kind) => setForm((f) => ({ ...f, kind: kind as VillaBlockedDate['kind'] }))} options={BLOCK_KIND_OPTIONS} />
+        <Select value={form.kind} onChange={(kind) => setForm((f) => ({ ...f, kind: kind as ManualBlockKind }))} options={BLOCK_KIND_OPTIONS} />
         <TextInput placeholder="Not (ops.)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
       </div>
       {error && <p className="mt-2 text-[0.82rem] text-red-700">{error}</p>}
@@ -1003,9 +1033,116 @@ function CalendarManager({
       >
         + Tarih blokla
       </button>
+
+      <div className="mt-8 border-t border-line pt-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="eyebrow text-gold">Dış kanallar</p>
+            <h3 className="mt-1 font-display text-xl font-light text-ink">iCal kaynakları</h3>
+            <p className="mt-1 max-w-2xl text-[0.78rem] leading-relaxed text-muted">
+              Bağlı villalar talep modunda çalışır. Kaynak bir saatten uzun süredir doğrulanmadıysa kesin müsaitlik verilmez.
+            </p>
+          </div>
+          <button
+            disabled={busy}
+            onClick={() => sourceAction(async () => {
+              const result = await api.rotateIcalExportToken(villaId);
+              setExportUrl(result.url);
+            })}
+            className="rounded-full border border-line px-4 py-2 text-[0.78rem] text-ink hover:border-ink disabled:opacity-40"
+          >
+            Export bağlantısını yenile
+          </button>
+        </div>
+
+        {exportUrl && (
+          <div className="mt-3 rounded-lg border border-gold/30 bg-gold/5 p-3">
+            <p className="text-[0.72rem] text-muted">Bu gizli bağlantı yalnızca şimdi gösterilir; dış kanala kopyalayın.</p>
+            <input readOnly value={exportUrl} onFocus={(event) => event.currentTarget.select()} className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-[0.76rem] text-ink" />
+          </div>
+        )}
+
+        <div className="mt-5 space-y-3">
+          {sources.map((source) => (
+            <div key={source.id} className="rounded-xl border border-line bg-sand/20 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[0.88rem] font-medium text-ink">{source.label}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[0.66rem] ${source.healthy ? 'bg-olive/10 text-olive' : source.status === 'PAUSED' ? 'bg-sand text-muted' : 'bg-red-50 text-red-700'}`}>
+                      {source.healthy ? 'Sağlıklı' : ICAL_STATUS_LABEL[source.status]}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[0.72rem] text-muted">
+                    {source.lastSuccessAt ? `Son başarı: ${new Date(source.lastSuccessAt).toLocaleString('tr-TR')}` : 'Henüz başarılı eşitleme yok'}
+                    {source.coverageEnd ? ` · Kapsam: ${fmtDate(source.coverageStart!)}–${fmtDate(source.coverageEnd)}` : ''}
+                  </p>
+                  {source.lastErrorCode && <p className="mt-1 text-[0.72rem] text-red-700">Hata: {source.lastErrorCode}</p>}
+                  {!!source.runs[0]?.conflictCount && <p className="mt-1 text-[0.72rem] font-medium text-red-700">{source.runs[0].conflictCount} rezervasyon çakışması incelenmeli</p>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button disabled={busy || source.status === 'PAUSED'} onClick={() => sourceAction(() => api.syncIcalSource(villaId, source.id))} className="text-[0.76rem] text-olive disabled:opacity-40">Şimdi eşitle</button>
+                  <button disabled={busy} onClick={() => sourceAction(() => api.pauseIcalSource(villaId, source.id, source.status !== 'PAUSED', source.version))} className="text-[0.76rem] text-muted disabled:opacity-40">{source.status === 'PAUSED' ? 'Sürdür' : 'Duraklat'}</button>
+                  <button disabled={busy} onClick={() => {
+                    const reason = prompt('Kaynağı kaldırma gerekçesi:');
+                    if (!reason?.trim()) return;
+                    const releaseBlocks = confirm('Bu kaynağın mevcut blokları da serbest bırakılsın mı? İptal seçerseniz bloklar korunur.');
+                    void sourceAction(() => api.removeIcalSource(villaId, source.id, source.version, reason, releaseBlocks));
+                  }} className="text-[0.76rem] text-red-700 disabled:opacity-40">Kaldır</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!sources.length && <p className="rounded-lg border border-dashed border-line px-4 py-5 text-center text-[0.8rem] text-muted">Henüz dış takvim bağlı değil.</p>}
+        </div>
+
+        <div className="mt-5 grid gap-3 rounded-xl border border-line p-4 sm:grid-cols-[1fr_2fr_auto]">
+          <TextInput placeholder="Kaynak adı (Airbnb)" value={sourceForm.label} onChange={(event) => setSourceForm((form) => ({ ...form, label: event.target.value }))} />
+          <TextInput type="url" placeholder="https://…/calendar.ics" value={sourceForm.url} onChange={(event) => {
+            setSourceForm((form) => ({ ...form, url: event.target.value }));
+            setPreview(null);
+          }} />
+          <button
+            disabled={busy || !sourceForm.url}
+            onClick={() => sourceAction(async () => {
+              const result = await api.previewIcalSource(villaId, sourceForm.url);
+              setPreview({ ...result, url: sourceForm.url });
+            })}
+            className="rounded-full border border-line px-4 py-2 text-[0.78rem] text-ink hover:border-ink disabled:opacity-40"
+          >
+            Önizle
+          </button>
+          <label className="flex items-center gap-2 text-[0.76rem] text-muted sm:col-span-2">
+            <input type="checkbox" checked={sourceForm.required} onChange={(event) => setSourceForm((form) => ({ ...form, required: event.target.checked }))} />
+            Bu kaynak satış onayı için zorunlu
+          </label>
+          {preview?.url === sourceForm.url && (
+            <button
+              disabled={busy || sourceForm.label.trim().length < 2}
+              onClick={() => sourceAction(async () => {
+                await api.createIcalSource(villaId, sourceForm);
+                setSourceForm({ label: '', url: '', required: true });
+                setPreview(null);
+              })}
+              className="rounded-full bg-ink px-4 py-2 text-[0.78rem] text-canvas disabled:opacity-40"
+            >
+              Kaynağı bağla
+            </button>
+          )}
+          {preview?.url === sourceForm.url && <p className="text-[0.74rem] text-olive sm:col-span-3">{preview.eventCount} dış kayıt doğrulandı · {fmtDate(preview.from)}–{fmtDate(preview.to)}</p>}
+        </div>
+      </div>
     </div>
   );
 }
+
+const ICAL_STATUS_LABEL: Record<IcalSource['status'], string> = {
+  PENDING: 'İlk eşitleme bekleniyor',
+  ACTIVE: 'Doğrulama eskidi',
+  PAUSED: 'Duraklatıldı',
+  ERROR: 'Eşitleme hatası',
+  REVIEW: 'İnceleme gerekli',
+};
 
 const fmtDate = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString('tr-TR', {
   day: '2-digit',

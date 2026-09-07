@@ -81,6 +81,12 @@ export class BookingsService {
 
         const dates = parseStayDates(input.from, input.to);
         const { villa, result } = await this.occupancy.checkAvailability(tx, input.villaId, dates, normalized);
+        if (villa.bookingMode !== 'INSTANT') {
+          throw new ConflictException({
+            message: 'Bu villa için önce rezervasyon talebi gönderilmelidir.',
+            code: 'REQUEST_ONLY',
+          });
+        }
         this.assertAvailable(result.reasons);
         const quote = this.occupancy.quote(villa, dates);
         const booking = await tx.booking.create({

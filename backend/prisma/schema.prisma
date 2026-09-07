@@ -150,10 +150,16 @@ enum VillaSalesStatus {
   PAUSED
 }
 
+enum VillaBookingMode {
+  INSTANT
+  REQUEST
+}
+
 enum VillaBlockedDateKind {
   MANUAL
   MAINTENANCE
   OWNER_USE
+  ICAL
 }
 
 enum VillaBlockedDateState {
@@ -173,6 +179,22 @@ enum BookingChannel {
   ADMIN
 }
 
+enum IcalSourceStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  ERROR
+  REVIEW
+}
+
+enum IcalSyncRunStatus {
+  RUNNING
+  SUCCESS
+  NOT_MODIFIED
+  FAILED
+  REVIEW
+}
+
 model Villa {
   id       String  @id @default(cuid())
   slug     String  @unique
@@ -184,9 +206,13 @@ model Villa {
 
   status      VillaStatus      @default(DRAFT)
   salesStatus VillaSalesStatus @default(OPEN)
+  bookingMode VillaBookingMode @default(INSTANT)
   timezone    String           @default("Europe/Istanbul")
   hostId      String?
   host        User?            @relation(fields: [hostId], references: [id])
+
+  icalExportTokenHash      String?   @unique
+  icalExportTokenCreatedAt DateTime? @db.Timestamptz(3)
 
   buildingType BuildingType
   /// T.C. Kültür ve Turizm Bakanlığı Turizm Amaçlı Konut İzin Belge No —
@@ -265,6 +291,7 @@ model Villa {
   blockedDates   VillaBlockedDate[]
   bookings       Booking[]
   calendarAudits CalendarAudit[]
+  icalSources    IcalSource[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -341,10 +368,18 @@ model VillaBlockedDate {
   releasedAt DateTime?
   version    Int                   @default(0)
 
+  sourceId            String?
+  source              IcalSource? @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  externalUid         String?
+  externalRecurrence  String      @default("")
+  externalFingerprint String?
+  missingCount        Int         @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([villaId, state, startDate])
+  @@index([sourceId, state, startDate])
 }
 
 model Booking {
@@ -391,6 +426,61 @@ model Booking {
   @@unique([idempotencyOwner, idempotencyKey])
   @@index([villaId, status, checkIn, checkOut])
   @@index([guestId, createdAt])
+}
+
+model IcalSource {
+  id      String @id @default(cuid())
+  villaId String
+  villa   Villa  @relation(fields: [villaId], references: [id], onDelete: Restrict)
+
+  label         String
+  urlCiphertext String
+  urlHash       String           @unique
+  required      Boolean          @default(true)
+  status        IcalSourceStatus @default(PENDING)
+
+  lastAttemptAt       DateTime? @db.Timestamptz(3)
+  lastSuccessAt       DateTime? @db.Timestamptz(3)
+  coverageStart       DateTime? @db.Date
+  coverageEnd         DateTime? @db.Date
+  etag                String?
+  lastModified        String?
+  nextSyncAt          DateTime  @default(now()) @db.Timestamptz(3)
+  consecutiveFailures Int       @default(0)
+  lastErrorCode       String?
+
+  leaseToken     String?   @unique
+  leaseExpiresAt DateTime? @db.Timestamptz(3)
+  version        Int       @default(0)
+  deletedAt      DateTime? @db.Timestamptz(3)
+
+  blocks VillaBlockedDate[]
+  runs   IcalSyncRun[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([status, nextSyncAt])
+  @@index([villaId, deletedAt])
+}
+
+model IcalSyncRun {
+  id       String     @id @default(cuid())
+  sourceId String
+  source   IcalSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  status        IcalSyncRunStatus @default(RUNNING)
+  addedCount    Int               @default(0)
+  updatedCount  Int               @default(0)
+  releasedCount Int               @default(0)
+  conflictCount Int               @default(0)
+  httpStatus    Int?
+  errorCode     String?
+
+  startedAt  DateTime  @default(now()) @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+
+  @@index([sourceId, startedAt])
 }
 
 model CalendarAudit {

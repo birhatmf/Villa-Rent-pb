@@ -14,6 +14,7 @@ export type AvailabilityReason =
   | 'DATES_UNAVAILABLE'
   | 'MIN_STAY'
   | 'CHECKIN_DAY'
+  | 'SYNC_UNHEALTHY'
   | 'CAPACITY_EXCEEDED';
 
 export type AvailabilityVilla = {
