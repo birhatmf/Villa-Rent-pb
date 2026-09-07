@@ -13,12 +13,15 @@ Son güncelleme: **7 Eylül 2026**
 | 3 — Takvim yönetimi | Tamamlandı | Admin/ev sahibi takvimi, blok nedenleri, sürüm kontrolü ve işlem geçmişi |
 | 4 — iCal | Teknik teslim tamamlandı | Güvenli import/export, senkronizasyon işçisi, kaynak sağlığı ve çakışma görünürlüğü |
 | 5 — Kapora ve ödeme | Havale akışı tamamlandı | Uçtan uca rezervasyon adımları, admin tanımlı IBAN'a kapora havalesi, filtrelenebilir rezervasyon listesi ve ayrı detay/onay ekranı. POS/webhook ihtiyaç kesinleştiğinde eklenecek |
+| C1–C4 — Customer deneyimi | Planlandı | Hesap güvenliği, seyahat merkezi, talep/değişiklik/iptal, bildirim ve doğrulanmış konaklama yorumları |
 
 Ana dalın Aşama 4 referansı: `df16d6d`.
 
 Aşama 4 için kalan kabul adımı, gerçek bir Airbnb veya Booking hesabına ait **özel iCal URL'siyle canlı pilot** yapmaktır. URL yalnızca villa düzenleme ekranındaki **Takvim ve Dış Kanallar** bölümüne girilmeli; kaynak koda, issue'ya veya loglara yazılmamalıdır.
 
 Ayrıntılı ürün ve teknik kararlar için [uygulama planına](docs/plans/villa-musaitlik-rezervasyon-ical.md) bakın.
+
+Customer hesap, seyahat ve yorum incelemesi için [customer deneyimi planına](docs/plans/customer-hesap-rezervasyon-yorum.md) bakın.
 
 ## Teknoloji
 
