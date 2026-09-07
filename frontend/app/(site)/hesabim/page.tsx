@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { logout, me, type AccountUser } from '@/lib/authApi';
 import { formatPrice } from '@/lib/api';
 import { listFavorites, removeFavorite, type FavoriteVilla } from '@/lib/favoritesApi';
+import { listMyBookings, type GuestBooking } from '@/lib/reservationApi';
 
 export default function HesabimPage() {
   const router = useRouter();
@@ -57,12 +58,20 @@ export default function HesabimPage() {
               Villalarınızı ekleyin, düzenleyin, fotoğraf ve fiyat kurallarını yönetin.
             </p>
           </div>
-          <Link
-            href="/hesabim/villalarim"
-            className="shrink-0 rounded-full bg-ink px-6 py-3 text-[0.9rem] text-canvas transition-colors hover:bg-olive"
-          >
-            Villalarımı yönet
-          </Link>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <Link
+              href="/hesabim/rezervasyonlarim"
+              className="rounded-full border border-ink/25 px-6 py-3 text-[0.9rem] text-ink transition-colors hover:border-ink"
+            >
+              Rezervasyonlarım
+            </Link>
+            <Link
+              href="/hesabim/villalarim"
+              className="rounded-full bg-ink px-6 py-3 text-[0.9rem] text-canvas transition-colors hover:bg-olive"
+            >
+              Villalarımı yönet
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="mt-14 rounded-xl border border-dashed border-line px-6 py-8 text-center">
@@ -77,6 +86,8 @@ export default function HesabimPage() {
           </Link>
         </div>
       )}
+
+      <BookingsSection />
 
       <FavoritesSection />
 
@@ -96,6 +107,68 @@ export default function HesabimPage() {
           Çıkış yap
         </button>
       </div>
+    </div>
+  );
+}
+
+const BOOKING_STATE: Record<string, string> = {
+  PENDING: 'Kapora bekleniyor',
+  DECLARED: 'Ödeme kontrol ediliyor',
+  PAID: 'Ödeme alındı',
+};
+
+const bookingDay = (value: string) =>
+  new Date(`${value}T00:00:00Z`).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+function BookingsSection() {
+  const [bookings, setBookings] = useState<GuestBooking[] | null>(null);
+
+  useEffect(() => {
+    listMyBookings()
+      .then((result) => setBookings(result.items))
+      .catch(() => setBookings([]));
+  }, []);
+
+  if (bookings === null || bookings.length === 0) return null;
+
+  return (
+    <div className="mt-14">
+      <h2 className="eyebrow text-muted">Rezervasyonlarım</h2>
+      <ul className="mt-5 divide-y divide-line border-y border-line">
+        {bookings.map((booking) => {
+          const state =
+            booking.status === 'CONFIRMED'
+              ? 'Onaylandı'
+              : booking.status === 'CANCELLED'
+                ? 'İptal edildi'
+                : booking.status === 'EXPIRED'
+                  ? 'Süresi doldu'
+                  : BOOKING_STATE[booking.paymentStatus] ?? 'Bekletiliyor';
+          return (
+            <li key={booking.id} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4">
+              <div className="min-w-0">
+                <Link href={`/rezervasyon/${booking.id}`} className="text-[0.95rem] text-ink underline-offset-4 hover:underline">
+                  {booking.villa.title}
+                </Link>
+                <p className="mt-0.5 text-[0.82rem] text-muted">
+                  {bookingDay(booking.checkIn)} – {bookingDay(booking.checkOut)} · {formatPrice(booking.totalAmount, booking.currency)}
+                </p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1 text-[0.76rem] ${
+                  booking.status === 'CONFIRMED'
+                    ? 'bg-olive/15 text-olive'
+                    : booking.status === 'HOLD'
+                      ? 'bg-gold/20 text-ink'
+                      : 'bg-sand text-muted'
+                }`}
+              >
+                {state}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Villa müsaitliği, rezervasyon ve iCal uygulama planı
 
-Tarih: 7 Eylül 2026. Durum: Aşama 1–4 teknik teslimi ve veri-koruyan SQL migration'ları tamamlandı; geliştirme veritabanına uygulandı. Aşama 4'ün özel sağlayıcı URL'siyle canlı pilotu ve Aşama 5 plan aşamasında.
+Tarih: 7 Eylül 2026. Durum: Aşama 1–4 teknik teslimi ve veri-koruyan SQL migration'ları tamamlandı; geliştirme veritabanına uygulandı. Aşama 4'ün özel sağlayıcı URL'siyle canlı pilotu bekliyor. Aşama 5, POS olmadan kapora havalesi biçiminde teslim edildi (bkz. "Aşama 5 gerçekleşen teknik teslim").
 
 Amaç: Aynı villanın aynı gecesinin kendi sistemimizde iki kişiye satılmasını önlemek; ev sahibi, admin ve dış takvim kayıtlarını birlikte değerlendirmek; belirsizliği satış sırasında görünür kılmak. Mevcut NestJS + Prisma + PostgreSQL ve Next.js yapısı korunacak. İlk kapsamda her villa tek rezervasyonla tamamen kiralanır; oda bazlı stok yoktur.
 
@@ -250,6 +250,16 @@ Raporlama: satılmış gece, geçici ayrılmış gece, manuel kapalı gece ve d�
 - Admin ve host villa ekranına önizleme, bağlama, sağlık/geçmiş, elle eşitleme, duraklatma, kontrollü kaldırma ve export token yenileme eklendi. Host erişimi villa sahipliğiyle sınırlıdır.
 - iCal bağlı villa otomatik `REQUEST` moduna geçer. Zorunlu kaynak ilk kez başarıyla eşitlenmediyse veya 60 dakikadan eskiyse public doğrulama ve kesin rezervasyon `SYNC_UNHEALTHY` ile durur; talep akışı açık kalır.
 - Migration aşama 3 şemasının verisiz kopyısında iki kez çalıştırıldı. Parser/güvenlik testleri ile gerçek PostgreSQL üzerinde kimlik güncelleme, iki görüntülü silme, iptal, çakışma, eski işçi ve export gizliliği senaryoları geçti. Gerçek Airbnb/Booking bağlantı pilotu için hesaba ait özel iCal URL'si gerekir.
+
+### Aşama 5 gerçekleşen teknik teslim (POS'suz kapora)
+
+- Ödeme sağlayıcısı seçilmeden akış kapatıldı: misafir kaporayı adminin tanımladığı IBAN'a havale eder, admin dekontu görüp rezervasyonu onaylar. `Booking` üzerine `paymentStatus` (`NONE`/`PENDING`/`DECLARED`/`PAID`), `prepaymentAmount` ve `paymentDeclaredAt` eklendi; `Booking_prepayment_range` kısıtı kaporanın toplamı aşmasını engeller.
+- Konaklama tutarı tek fonksiyonda toplandı (`quoteStay`). Kesin rezervasyon ve halka açık fiyat önizlemesi aynı hesabı kullanır; arayüz para aritmetiği yapmaz. Halka açık müsaitlik ucu artık gece kırılımı, temizlik ücreti, toplam ve kapora döndürür.
+- Bekletme iki aşamalı: karar için 10 dakika, havale bildirimi sonrası adminin belirlediği süre (varsayılan 24 saat). Banka havalesi 10 dakikaya sığmadığı için bildirim bekletmeyi uzatır; geceler dekont incelenirken açılmaz.
+- Havale bilgisi halka açık ayar ucundan yayınlanmaz. `GET /settings/:key` beyaz listeye alındı (`footer`); IBAN ve komisyon oranı yalnızca admin ucundan ve kendi rezervasyonunu görüntüleyen misafirin yanıtından okunur.
+- Ayarlar villa kilidi altında okunmaz. Açık transaction içinden ikinci bir sorgu havuzdan yeni bağlantı istediği için eşzamanlı bekletmelerde kilitlenme oluşuyordu; ayar okuması kilit öncesine alındı ve yarış testiyle doğrulandı.
+- Rezervasyon tarihleri değiştiğinde kapora yeniden hesaplanır, aksi halde kısaltılan konaklamada kapora toplamı aşabilir.
+- Villa detay sayfası yeniden düzenlendi: fiyat başlığın yanında, takvimde her gecenin fiyatı, sağda yapışkan ve canlı hesaplayan rezervasyon kutusu. Akış üç adım: tarih → detaylar → ödeme.
 
 ## 11. Başlangıç için önerilen ürün kararları
 

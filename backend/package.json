@@ -7,6 +7,7 @@
     "build": "nest build",
     "start": "node dist/src/main",
     "test:availability": "ts-node test/availability-unit.ts",
+    "test:payment": "ts-node test/payment-unit.ts",
     "test:booking-concurrency": "ts-node test/booking-concurrency.ts",
     "test:ical-parser": "ts-node test/ical-parser.ts",
     "test:ical-security": "ts-node test/ical-security.ts",

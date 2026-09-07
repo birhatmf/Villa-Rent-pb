@@ -56,6 +56,8 @@ export class CalendarService {
           holdExpiresAt: true,
           totalAmount: true,
           currency: true,
+          paymentStatus: true,
+          prepaymentAmount: true,
           version: true,
           guest: { select: { name: true, email: true, phone: true } },
         },
@@ -102,6 +104,8 @@ export class CalendarService {
           holdExpiresAt: booking.holdExpiresAt,
           totalAmount: booking.totalAmount,
           currency: booking.currency,
+          paymentStatus: booking.paymentStatus,
+          prepaymentAmount: booking.prepaymentAmount,
           version: booking.version,
         })),
         ...blocks.map((block) => ({

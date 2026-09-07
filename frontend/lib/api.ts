@@ -64,6 +64,19 @@ export async function listVillas(params: VillaListParams): Promise<VillaListResp
   return res.json();
 }
 
+/** Tutarlar backend'de `quoteStay` ile hesaplanır — arayüzde para aritmetiği yapılmaz. */
+export type StayQuote = {
+  currency: string;
+  nights: { date: string; amount: number }[];
+  accommodationAmount: number;
+  cleaningFeeAmount: number;
+  /** Hasar depozitosu (girişte alınır) — kaporadan farklıdır. */
+  depositAmount: number;
+  totalAmount: number;
+  /** Rezervasyonu bağlamak için şimdi havale edilecek kapora. */
+  prepaymentAmount: number;
+};
+
 export type AvailabilityResult = {
   from: string;
   to: string;
@@ -72,6 +85,7 @@ export type AvailabilityResult = {
   minimumNights: number;
   bookingMode?: 'INSTANT' | 'REQUEST';
   reasons: Array<'SALES_PAUSED' | 'DATES_UNAVAILABLE' | 'MIN_STAY' | 'CHECKIN_DAY' | 'SYNC_UNHEALTHY' | 'CAPACITY_EXCEEDED'>;
+  quote: StayQuote;
 };
 
 export async function getVillaAvailability(

@@ -9,7 +9,7 @@ import { UsersController } from './admin/users.controller';
 import { UsersService } from './admin/users.service';
 import { FavoritesController } from './favorites/favorites.controller';
 import { FavoritesService } from './favorites/favorites.service';
-import { AdminBookingsController } from './bookings/admin-bookings.controller';
+import { AdminBookingsController, HostBookingsController } from './bookings/admin-bookings.controller';
 import { BookingsController } from './bookings/bookings.controller';
 import { BookingsService } from './bookings/bookings.service';
 import { OccupancyService } from './bookings/occupancy.service';
@@ -56,6 +56,7 @@ import { VillasService } from './villas/villas.service';
     HostApplicationsController,
     AdminHostApplicationsController,
     AdminBookingsController,
+    HostBookingsController,
     BookingsController,
     AdminCalendarController,
     HostCalendarController,

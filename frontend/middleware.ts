@@ -29,8 +29,12 @@ export function middleware(req: NextRequest) {
       url.searchParams.set('next', pathname + search);
       return NextResponse.redirect(url);
     }
-    // "Villalarım" yalnızca HOST/ADMIN — misafir üye önce ev sahibi başvurusu yapmalı.
-    if (pathname.startsWith('/hesabim/villalarim') && session && session.role === 'GUEST') {
+    // "Villalarım" ve "Rezervasyonlarım" yalnızca HOST/ADMIN — misafir üye önce ev sahibi başvurusu yapmalı.
+    if (
+      (pathname.startsWith('/hesabim/villalarim') || pathname.startsWith('/hesabim/rezervasyonlarim')) &&
+      session &&
+      session.role === 'GUEST'
+    ) {
       return redirect('/hesabim');
     }
     return NextResponse.next();

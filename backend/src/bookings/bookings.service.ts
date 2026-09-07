@@ -5,12 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type BookingStatus } from '@prisma/client';
+import { Prisma, type BookingChannel, type BookingPaymentStatus, type BookingStatus } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
-import { formatCalendarDate, parseStayDates } from '../villas/availability';
+import { SettingsService } from '../settings/settings.service';
+import { formatCalendarDate, parseCalendarDate, parseStayDates } from '../villas/availability';
 import type { AdminCreateBookingDto, ChangeBookingDto, CreateHoldDto } from './dto';
 import { OccupancyService } from './occupancy.service';
+import { paymentReference, prepaymentFor, readPaymentSettings } from './payment';
 
 const HOLD_MINUTES = 10;
 const MAX_ACTIVE_HOLDS = 5;
@@ -35,6 +37,9 @@ const BOOKING_SELECT = {
   depositAmount: true,
   totalAmount: true,
   priceSnapshot: true,
+  paymentStatus: true,
+  prepaymentAmount: true,
+  paymentDeclaredAt: true,
   holdExpiresAt: true,
   confirmedAt: true,
   cancelledAt: true,
@@ -52,6 +57,7 @@ export class BookingsService {
   constructor(
     private prisma: PrismaService,
     private occupancy: OccupancyService,
+    private settings: SettingsService,
   ) {}
 
   async createHold(input: CreateHoldDto, userId: string, idempotencyKey?: string) {
@@ -59,14 +65,17 @@ export class BookingsService {
     const owner = `guest:${userId}`;
     const normalized = this.normalizeStay(input);
     const requestHash = this.hash({ villaId: input.villaId, ...normalized });
+    // Ayarlar kilit ALTINDA okunmaz: açık transaction içinden ikinci bir sorgu
+    // havuzdan yeni bağlantı ister ve eşzamanlı bekletmelerde kilitlenme yaratır.
+    const payment = readPaymentSettings(await this.settings.get('payments'));
 
     try {
       return await this.occupancy.withVillaLock(input.villaId, async (tx, now) => {
         const existing = await this.findIdempotent(tx, owner, key, requestHash);
         if (existing) return this.response(existing);
 
-        const guest = await tx.$queryRaw<{ id: string }[]>`
-          SELECT id FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
+        const guest = await tx.$queryRaw<{ id: string; name: string; email: string; phone: string | null }[]>`
+          SELECT id, name, email, phone FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
         `;
         if (!guest.length) throw new ForbiddenException('Aktif misafir hesabı bulunamadı.');
         const activeHolds = await tx.booking.count({
@@ -98,8 +107,15 @@ export class BookingsService {
             checkIn: dates.checkIn,
             checkOut: dates.checkOut,
             ...normalized,
+            // İletişim bilgisi boşsa hesaptaki bilgi yazılır; misafir hesabını
+            // sonradan değiştirse de rezervasyonun kimin adına açıldığı sabit kalır.
+            customerName: input.customerName?.trim() || guest[0].name,
+            customerEmail: input.customerEmail?.trim().toLowerCase() || guest[0].email,
+            customerPhone: input.customerPhone?.trim() || guest[0].phone || undefined,
             ...quote,
             priceSnapshot: quote.priceSnapshot as Prisma.InputJsonValue,
+            paymentStatus: 'PENDING',
+            prepaymentAmount: prepaymentFor(quote.totalAmount, payment),
             holdExpiresAt: new Date(now.getTime() + HOLD_MINUTES * 60_000),
             idempotencyOwner: owner,
             idempotencyKey: key,
@@ -182,12 +198,12 @@ export class BookingsService {
     }
   }
 
-  async confirm(id: string, expectedVersion: number, actorId: string) {
-    const target = await this.bookingTarget(id);
+  async confirm(id: string, expectedVersion: number, actorId: string, hostId?: string) {
+    const target = await this.bookingTarget(id, hostId);
     return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
       const booking = await tx.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
       if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
-      if (booking.status === 'CONFIRMED') return this.response(booking);
+      if (booking.status === 'CONFIRMED') return this.response(booking, hostId);
       this.assertVersion(booking.version, expectedVersion);
       if (booking.status !== 'HOLD') throw new ConflictException('Bu rezervasyon artık onaylanamaz.');
 
@@ -203,20 +219,29 @@ export class BookingsService {
 
       const updated = await tx.booking.update({
         where: { id },
-        data: { status: 'CONFIRMED', holdExpiresAt: null, confirmedAt: now, version: { increment: 1 } },
+        data: {
+          status: 'CONFIRMED',
+          holdExpiresAt: null,
+          confirmedAt: now,
+          // POS yok: onayı veren admin dekontu görmüş sayılır, ayrı bir "ödendi"
+          // işlemi yok. Ödeme beklenmeyen (NONE) admin kayıtları olduğu gibi kalır.
+          ...(booking.paymentStatus === 'NONE' ? {} : { paymentStatus: 'PAID' as const }),
+          version: { increment: 1 },
+        },
         select: BOOKING_SELECT,
       });
       await this.audit(tx, updated, actorId, 'BOOKING_CONFIRMED', { status: booking.status }, {
         status: updated.status,
       });
-      return this.response(updated);
+      return this.response(updated, hostId);
     });
   }
 
-  async change(id: string, input: ChangeBookingDto, actorId: string) {
-    const target = await this.bookingTarget(id);
+  async change(id: string, input: ChangeBookingDto, actorId: string, hostId?: string) {
+    const target = await this.bookingTarget(id, hostId);
     const normalized = this.normalizeStay(input);
     const dates = parseStayDates(input.from, input.to);
+    const payment = readPaymentSettings(await this.settings.get('payments'));
     return this.occupancy.withVillaLock(target.villaId, async (tx) => {
       const booking = await tx.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
       if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
@@ -228,6 +253,12 @@ export class BookingsService {
       const { villa, result } = await this.occupancy.checkAvailability(tx, booking.villaId, dates, normalized, id);
       this.assertAvailable(result.reasons);
       const quote = this.occupancy.quote(villa, dates);
+      // Tarih değişince toplam da değişir; kapora yeniden hesaplanmazsa toplamı
+      // aşabilir (veritabanındaki Booking_prepayment_range kısıtı buna izin vermez).
+      const prepaymentAmount =
+        booking.paymentStatus === 'NONE'
+          ? booking.prepaymentAmount
+          : prepaymentFor(quote.totalAmount, payment);
       const updated = await tx.booking.update({
         where: { id },
         data: {
@@ -236,6 +267,7 @@ export class BookingsService {
           ...normalized,
           ...quote,
           priceSnapshot: quote.priceSnapshot as Prisma.InputJsonValue,
+          prepaymentAmount,
           version: { increment: 1 },
         },
         select: BOOKING_SELECT,
@@ -252,6 +284,7 @@ export class BookingsService {
           children: booking.children,
           infants: booking.infants,
           totalAmount: booking.totalAmount,
+          prepaymentAmount: booking.prepaymentAmount,
         },
         {
           checkIn: formatCalendarDate(updated.checkIn),
@@ -260,18 +293,19 @@ export class BookingsService {
           children: updated.children,
           infants: updated.infants,
           totalAmount: updated.totalAmount,
+          prepaymentAmount: updated.prepaymentAmount,
         },
       );
-      return this.response(updated);
+      return this.response(updated, hostId);
     });
   }
 
-  async cancel(id: string, expectedVersion: number, note: string, actorId: string) {
-    const target = await this.bookingTarget(id);
+  async cancel(id: string, expectedVersion: number, note: string, actorId: string, hostId?: string) {
+    const target = await this.bookingTarget(id, hostId);
     return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
       const booking = await tx.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
       if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
-      if (booking.status === 'CANCELLED') return this.response(booking);
+      if (booking.status === 'CANCELLED') return this.response(booking, hostId);
       this.assertVersion(booking.version, expectedVersion);
       if (booking.status === 'EXPIRED') throw new ConflictException('Süresi dolmuş rezervasyon iptal edilemez.');
       const updated = await tx.booking.update({
@@ -287,7 +321,7 @@ export class BookingsService {
       await this.audit(tx, updated, actorId, 'BOOKING_CANCELLED', { status: booking.status }, {
         status: updated.status,
       }, note.trim());
-      return this.response(updated);
+      return this.response(updated, hostId);
     });
   }
 
@@ -319,24 +353,140 @@ export class BookingsService {
     });
   }
 
+  /**
+   * Misafirin havale bildirimi. Bekletme 10 dakikalıktır; banka havalesi o süreye
+   * sığmaz. Bildirimle birlikte bekletme adminin belirlediği ödeme süresi kadar
+   * uzatılır — geceler dekont incelenirken açık kalmaz.
+   */
+  async declarePayment(id: string, userId: string) {
+    const target = await this.prisma.booking.findFirst({
+      where: { id, guestId: userId },
+      select: { villaId: true },
+    });
+    if (!target) throw new NotFoundException('Rezervasyon bulunamadı.');
+    const settings = readPaymentSettings(await this.settings.get('payments'));
+
+    return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
+      const booking = await tx.booking.findFirst({ where: { id, guestId: userId }, select: BOOKING_SELECT });
+      if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
+      // Tekrar gönderim sessizce aynı yanıtı döner; onaylanmış kaydı da bozmaz.
+      if (booking.paymentStatus === 'DECLARED' || booking.paymentStatus === 'PAID') {
+        return this.ownResponse(booking, settings);
+      }
+      if (booking.status !== 'HOLD' || booking.paymentStatus !== 'PENDING') {
+        throw new ConflictException('Bu rezervasyon için ödeme bildirimi yapılamaz.');
+      }
+
+      const deadline = new Date(now.getTime() + settings.deadlineHours * 3_600_000);
+      const updated = await tx.booking.update({
+        where: { id },
+        data: {
+          paymentStatus: 'DECLARED',
+          paymentDeclaredAt: now,
+          holdExpiresAt: deadline,
+          version: { increment: 1 },
+        },
+        select: BOOKING_SELECT,
+      });
+      await this.audit(tx, updated, userId, 'PAYMENT_DECLARED', {
+        paymentStatus: booking.paymentStatus,
+        holdExpiresAt: booking.holdExpiresAt?.toISOString() ?? null,
+      }, {
+        paymentStatus: updated.paymentStatus,
+        holdExpiresAt: deadline.toISOString(),
+        prepaymentAmount: updated.prepaymentAmount,
+      });
+      return this.ownResponse(updated, settings);
+    });
+  }
+
   async getOwn(id: string, userId: string) {
     const booking = await this.prisma.booking.findFirst({ where: { id, guestId: userId }, select: BOOKING_SELECT });
     if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
-    return this.response(booking);
+    return this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments')));
   }
 
-  async getAdmin(id: string) {
-    const booking = await this.prisma.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
+  async listOwn(userId: string) {
+    const items = await this.prisma.booking.findMany({
+      where: { guestId: userId },
+      select: BOOKING_SELECT,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return { items: items.map((item) => this.response(item)) };
+  }
+
+  async getAdmin(id: string, hostId?: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, ...(hostId ? { villa: { hostId } } : {}) },
+      select: BOOKING_SELECT,
+    });
     if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
-    return this.response(booking);
+    const audits = await this.prisma.calendarAudit.findMany({
+      where: { entityType: 'BOOKING', entityId: id, ...(hostId ? { villa: { hostId } } : {}) },
+      select: {
+        id: true,
+        villaId: true,
+        entityType: true,
+        entityId: true,
+        action: true,
+        reason: true,
+        before: true,
+        after: true,
+        createdAt: true,
+        villa: { select: { title: true } },
+        actor: { select: { name: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const safeAudits = hostId && booking.status !== 'CONFIRMED'
+      ? audits.map((audit) => ({
+          ...audit,
+          actor: audit.actor?.role === 'GUEST' ? { ...audit.actor, name: 'Misafir' } : audit.actor,
+        }))
+      : audits;
+    return { ...this.response(booking, hostId), audits: safeAudits };
   }
 
-  async listAdmin(input: { status?: BookingStatus; villaId?: string; page?: number; pageSize?: number }) {
+  async listAdmin(input: {
+    status?: BookingStatus;
+    paymentStatus?: BookingPaymentStatus;
+    channel?: BookingChannel;
+    villaId?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+    hostId?: string;
+  }) {
     const page = Math.max(input.page ?? 1, 1);
     const pageSize = Math.min(Math.max(input.pageSize ?? 20, 1), 100);
+    const q = input.q?.trim();
+    const referenceQuery = q?.replace(/^MV-/i, '');
+    const from = input.from ? parseCalendarDate(input.from) : undefined;
+    const to = input.to ? parseCalendarDate(input.to) : undefined;
+    if (from && to && from >= to) throw new BadRequestException('Tarih filtresinde bitiş başlangıçtan sonra olmalı.');
     const where: Prisma.BookingWhereInput = {
       ...(input.status ? { status: input.status } : {}),
+      ...(input.paymentStatus ? { paymentStatus: input.paymentStatus } : {}),
+      ...(input.channel ? { channel: input.channel } : {}),
       ...(input.villaId ? { villaId: input.villaId } : {}),
+      ...(input.hostId ? { villa: { hostId: input.hostId } } : {}),
+      ...(from ? { checkOut: { gt: from } } : {}),
+      ...(to ? { checkIn: { lt: to } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { customerName: { contains: q, mode: 'insensitive' } },
+              { customerEmail: { contains: q, mode: 'insensitive' } },
+              { customerPhone: { contains: q, mode: 'insensitive' } },
+              { id: { contains: referenceQuery, mode: 'insensitive' } },
+              { villa: { title: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.booking.findMany({
@@ -348,7 +498,7 @@ export class BookingsService {
       }),
       this.prisma.booking.count({ where }),
     ]);
-    return { items: items.map((item) => this.response(item)), total, page, pageSize };
+    return { items: items.map((item) => this.response(item, input.hostId)), total, page, pageSize };
   }
 
   private normalizeStay(input: { adults: number; children?: number; infants?: number }) {
@@ -408,8 +558,11 @@ export class BookingsService {
     if (actual !== expected) throw new ConflictException('Rezervasyon başka bir işlem tarafından değiştirildi.');
   }
 
-  private async bookingTarget(id: string) {
-    const booking = await this.prisma.booking.findUnique({ where: { id }, select: { villaId: true } });
+  private async bookingTarget(id: string, hostId?: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, ...(hostId ? { villa: { hostId } } : {}) },
+      select: { villaId: true },
+    });
     if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
     return booking;
   }
@@ -441,14 +594,48 @@ export class BookingsService {
     });
   }
 
-  private response(booking: BookingRecord | (BookingRecord & { requestHash: string })) {
+  /**
+   * Havale bilgisi yalnızca kendi rezervasyonunu görüntüleyen misafire eklenir.
+   * IBAN halka açık ayar ucundan servis edilmez (bkz. settings.controller).
+   */
+  private ownResponse(booking: BookingRecord, settings: ReturnType<typeof readPaymentSettings>) {
+    const base = this.response(booking);
+    if (booking.paymentStatus === 'NONE') return base;
+    return {
+      ...base,
+      payment: {
+        reference: paymentReference(booking.id),
+        amount: booking.prepaymentAmount,
+        currency: booking.currency,
+        accountHolder: settings.accountHolder,
+        iban: settings.iban,
+        bankName: settings.bankName,
+        note: settings.note,
+        deadlineHours: settings.deadlineHours,
+      },
+    };
+  }
+
+  /**
+   * hostId verilmişse ev sahibi görünümü: misafir onaylanana kadar (CONFIRMED
+   * olana kadar) ad/e‑posta/telefon gizlenir. Kapora ödenmeden host misafire
+   * platform dışından ulaşıp komisyonu atlayamasın diye — bkz. proje planı.
+   */
+  private response(
+    booking: BookingRecord | (BookingRecord & { requestHash: string }),
+    hostId?: string,
+  ) {
     const { requestHash: _requestHash, ...safeBooking } = booking as BookingRecord & {
       requestHash?: string;
     };
+    const revealContact = !hostId || booking.status === 'CONFIRMED';
     return {
       ...safeBooking,
       checkIn: formatCalendarDate(booking.checkIn),
       checkOut: formatCalendarDate(booking.checkOut),
+      customerName: revealContact ? safeBooking.customerName : null,
+      customerEmail: revealContact ? safeBooking.customerEmail : null,
+      customerPhone: revealContact ? safeBooking.customerPhone : null,
     };
   }
 }

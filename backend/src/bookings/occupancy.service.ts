@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { evaluateAvailability, type StayDates } from '../villas/availability';
+import { evaluateAvailability, quoteStay, type StayDates } from '../villas/availability';
 
 export type GuestCounts = { adults: number; children: number; infants: number };
 
@@ -125,21 +125,6 @@ export class OccupancyService {
   }
 
   quote(villa: AvailabilityVillaRecord, dates: StayDates) {
-    const nights: { date: string; amount: number }[] = [];
-    for (let cursor = dates.checkIn.getTime(); cursor < dates.checkOut.getTime(); cursor += 86_400_000) {
-      const day = new Date(cursor);
-      const rule = villa.priceRules.find((candidate) => candidate.startDate <= day && candidate.endDate > day);
-      nights.push({ date: day.toISOString().slice(0, 10), amount: rule?.pricePerNight ?? villa.pricePerNight });
-    }
-    const accommodationAmount = nights.reduce((sum, night) => sum + night.amount, 0);
-    const cleaningFeeAmount = dates.nights < villa.cleaningFeeThresholdNights ? villa.cleaningFee : 0;
-    return {
-      currency: villa.currency,
-      accommodationAmount,
-      cleaningFeeAmount,
-      depositAmount: villa.depositAmount,
-      totalAmount: accommodationAmount + cleaningFeeAmount,
-      priceSnapshot: { nights, cleaningFeeAmount, depositAmount: villa.depositAmount },
-    };
+    return quoteStay(villa, dates);
   }
 }

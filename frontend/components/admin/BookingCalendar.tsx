@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/http';
 import {
@@ -13,6 +14,12 @@ import {
 const DAY = 86_400_000;
 const WEEKDAYS = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 const INPUT = 'w-full rounded-md border border-line bg-surface px-3 py-2 text-[0.84rem] text-ink outline-none focus:border-olive-soft focus-visible:ring-2 focus-visible:ring-olive/20';
+const PAYMENT_LABEL: Record<string, string> = {
+  PENDING: 'Kapora bekleniyor — misafir henüz bildirim yapmadı',
+  DECLARED: 'Havale bildirildi — dekontu doğrulayıp onaylayın',
+  PAID: 'Ödeme doğrulandı',
+};
+
 const EVENT_LABEL: Record<string, string> = {
   CONFIRMED: 'Onaylı rezervasyon',
   HOLD: 'Bekletme',
@@ -81,8 +88,6 @@ export default function BookingCalendar() {
   const [mode, setMode] = useState<'BOOKING' | 'BLOCK'>('BOOKING');
   const [bookingForm, setBookingForm] = useState<BookingForm>(emptyBooking);
   const [blockForm, setBlockForm] = useState({ villaId: '', startDate: '', endDate: '', kind: 'MANUAL' as BlockKind, note: '' });
-  const [editForm, setEditForm] = useState({ from: '', to: '', adults: 2, children: 0, infants: 0 });
-  const [cancelNote, setCancelNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,6 +114,16 @@ export default function BookingCalendar() {
   }, [from, to, villaId]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const selectedVilla = params.get('villaId');
+    const selectedDate = params.get('date');
+    if (selectedVilla) setVillaId(selectedVilla);
+    if (selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      const [year, monthIndex] = selectedDate.split('-').map(Number);
+      setMonth(new Date(Date.UTC(year, monthIndex - 1, 1)));
+    }
+  }, []);
 
   const regions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -131,14 +146,6 @@ export default function BookingCalendar() {
   function chooseEvent(event: CalendarEvent, related = relatedEvents.length ? relatedEvents : [event]) {
     setSelected(event);
     setRelatedEvents(related);
-    setEditForm({
-      from: event.startDate,
-      to: event.endDate,
-      adults: event.adults ?? 2,
-      children: event.children ?? 0,
-      infants: event.infants ?? 0,
-    });
-    setCancelNote('');
     setError(null);
   }
 
@@ -150,6 +157,7 @@ export default function BookingCalendar() {
     if (mode === 'BOOKING') setBookingForm((form) => ({ ...form, villaId: villa, from: start, to: end }));
     else setBlockForm((form) => ({ ...form, villaId: villa, startDate: start, endDate: end }));
   }
+
 
   async function act(action: () => Promise<unknown>, success?: () => void) {
     setBusy(true);
@@ -255,7 +263,7 @@ export default function BookingCalendar() {
 
           <aside className="space-y-5">
             {selected ? (
-              <EventPanel event={selected} relatedEvents={relatedEvents} onSelect={chooseEvent} form={editForm} setForm={setEditForm} cancelNote={cancelNote} setCancelNote={setCancelNote} busy={busy} onClose={() => { setSelected(null); setRelatedEvents([]); }} onChange={() => act(() => bookingApi.change(selected.id, { ...editForm, version: selected.version }))} onConfirm={() => act(() => bookingApi.confirm(selected.id, selected.version))} onCancel={() => act(() => bookingApi.cancel(selected.id, selected.version, cancelNote))} onRelease={() => act(() => bookingApi.removeBlock(selected.villaId, selected.id, selected.version), () => { setSelected(null); setRelatedEvents([]); })} />
+              <EventPanel event={selected} relatedEvents={relatedEvents} onSelect={chooseEvent} busy={busy} onClose={() => { setSelected(null); setRelatedEvents([]); }} onRelease={() => act(() => bookingApi.removeBlock(selected.villaId, selected.id, selected.version), () => { setSelected(null); setRelatedEvents([]); })} />
             ) : (
               <section className="rounded-xl border border-line bg-surface p-5">
                 <div className="flex rounded-lg bg-sand p-1">
@@ -317,18 +325,15 @@ function BlockCreateForm({ form, setForm, villas, busy, onSubmit }: { form: { vi
   </div>;
 }
 
-function EventPanel({ event, relatedEvents, onSelect, form, setForm, cancelNote, setCancelNote, busy, onClose, onChange, onConfirm, onCancel, onRelease }: { event: CalendarEvent; relatedEvents: CalendarEvent[]; onSelect: (event: CalendarEvent, related?: CalendarEvent[]) => void; form: { from: string; to: string; adults: number; children: number; infants: number }; setForm: React.Dispatch<React.SetStateAction<{ from: string; to: string; adults: number; children: number; infants: number }>>; cancelNote: string; setCancelNote: (value: string) => void; busy: boolean; onClose: () => void; onChange: () => void; onConfirm: () => void; onCancel: () => void; onRelease: () => void }) {
+function EventPanel({ event, relatedEvents, onSelect, busy, onClose, onRelease }: { event: CalendarEvent; relatedEvents: CalendarEvent[]; onSelect: (event: CalendarEvent, related?: CalendarEvent[]) => void; busy: boolean; onClose: () => void; onRelease: () => void }) {
   return <section className="rounded-xl border border-line bg-surface p-5">
     <div className="flex items-start justify-between gap-3"><div><p className="eyebrow text-gold">{EVENT_LABEL[event.kind]}</p><h2 className="mt-2 font-display text-xl font-light text-ink">{event.title}</h2></div><button onClick={onClose} aria-label="Kapat" className="text-xl text-muted hover:text-ink">×</button></div>
     <p className="mt-2 text-[0.8rem] text-muted">{dateLabel(event.startDate)} – {dateLabel(event.endDate)}</p>
     {relatedEvents.length > 1 && <div className="mt-4 rounded-lg border border-red-200 bg-red-50/60 p-3"><p className="text-[0.7rem] font-medium text-red-800">Bu günü kapatan {relatedEvents.length} neden var</p><div className="mt-2 flex flex-wrap gap-1.5">{relatedEvents.map((item) => <button key={`${item.source}-${item.id}`} onClick={() => onSelect(item, relatedEvents)} className={`rounded-full border px-2.5 py-1 text-[0.7rem] ${item.id === event.id ? 'border-red-700 bg-red-700 text-white' : 'border-red-200 bg-white text-red-800'}`}>{EVENT_LABEL[item.kind]}</button>)}</div></div>}
     {event.source === 'BOOKING' ? <div className="mt-5 space-y-3">
       {(event.email || event.phone) && <p className="rounded-lg bg-sand/60 p-3 text-[0.78rem] leading-relaxed text-muted">{event.email}<br />{event.phone}</p>}
-      <div className="grid grid-cols-2 gap-2"><input aria-label="Yeni giriş" type="date" value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} className={INPUT} /><input aria-label="Yeni çıkış" type="date" value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} className={INPUT} /></div>
-      <GuestFields value={form} onChange={(key, value) => setForm({ ...form, [key]: value })} />
-      <button disabled={busy} onClick={onChange} className="w-full rounded-full border border-ink py-2.5 text-[0.82rem] text-ink hover:bg-ink hover:text-canvas disabled:opacity-40">Değişiklikleri kaydet</button>
-      {event.kind === 'HOLD' && <button disabled={busy} onClick={onConfirm} className="w-full rounded-full bg-olive py-2.5 text-[0.82rem] text-white disabled:opacity-40">Bekletmeyi onayla</button>}
-      <div className="border-t border-line pt-3"><input placeholder="İptal gerekçesi" value={cancelNote} onChange={(e) => setCancelNote(e.target.value)} className={INPUT} /><button disabled={busy || cancelNote.trim().length < 2} onClick={onCancel} className="mt-2 text-[0.78rem] text-red-700 disabled:opacity-40">Rezervasyonu iptal et</button></div>
+      {event.paymentStatus && event.paymentStatus !== 'NONE' && <p className={`rounded-lg p-3 text-[0.78rem] leading-relaxed ${event.paymentStatus === 'DECLARED' ? 'bg-gold/20 text-ink' : event.paymentStatus === 'PAID' ? 'bg-olive/15 text-olive' : 'bg-sand/60 text-muted'}`}>{PAYMENT_LABEL[event.paymentStatus]}{event.prepaymentAmount ? ` · ${event.prepaymentAmount.toLocaleString('tr-TR')} ${event.currency ?? ''}` : ''}<br /><span className="text-muted">Havale açıklaması: MV-{event.id.slice(-6).toUpperCase()}</span></p>}
+      <Link href={`/admin/rezervasyonlar/${event.id}`} className="block w-full rounded-full bg-ink px-4 py-2.5 text-center text-[0.82rem] text-canvas transition-colors hover:bg-olive">Detay ve onay ekranını aç</Link>
     </div> : <div className="mt-5">
       {event.note && <p className="rounded-lg bg-sand/60 p-3 text-[0.8rem] text-muted">{event.note}</p>}
       {event.kind === 'ICAL' ? (

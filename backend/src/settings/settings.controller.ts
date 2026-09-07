@@ -8,12 +8,20 @@ class SetSettingDto {
   @IsObject() value!: Record<string, any>;
 }
 
+/**
+ * Halka açık ayarlar beyaz listeyle sınırlı. `payments` gibi anahtarlar komisyon
+ * oranı ve IBAN taşır; bunlar yalnızca admin ucundan ve kendi rezervasyonunu
+ * görüntüleyen misafirin rezervasyon yanıtından okunur.
+ */
+const PUBLIC_SETTING_KEYS = new Set(['footer']);
+
 @Controller('settings')
 export class SettingsController {
   constructor(private settings: SettingsService) {}
 
   @Get(':key')
   get(@Param('key') key: string) {
+    if (!PUBLIC_SETTING_KEYS.has(key)) return {};
     return this.settings.get(key);
   }
 }

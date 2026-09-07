@@ -10,11 +10,14 @@ import { rm } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma.service';
 import { OccupancyService } from '../bookings/occupancy.service';
+import { prepaymentFor, readPaymentSettings } from '../bookings/payment';
+import { SettingsService } from '../settings/settings.service';
 import {
   evaluateAvailability,
   formatCalendarDate,
   parseCalendarDate,
   parseStayDates,
+  quoteStay,
 } from './availability';
 
 export const UPLOAD_ROOT = join(process.cwd(), 'uploads', 'villas');
@@ -210,6 +213,7 @@ export class VillasService {
   constructor(
     private prisma: PrismaService,
     private occupancy: OccupancyService,
+    private settings: SettingsService,
   ) {}
 
   async list({ hostId, status, regionId, q, page = 1, pageSize = 20 }: ListParams) {
@@ -531,9 +535,16 @@ export class VillasService {
         maxAdults: true,
         maxChildren: true,
         maxInfants: true,
+        pricePerNight: true,
+        currency: true,
+        cleaningFee: true,
+        cleaningFeeThresholdNights: true,
+        depositAmount: true,
+        // Konaklamanın tamamını kapsayan kurallar: `minimumNightsFor` yalnızca
+        // giriş gününe bakar, `quoteStay` her geceye ayrı ayrı bakar.
         priceRules: {
-          where: { startDate: { lte: dates.checkIn }, endDate: { gt: dates.checkIn } },
-          select: { startDate: true, endDate: true, minNights: true },
+          where: { startDate: { lt: dates.checkOut }, endDate: { gt: dates.checkIn } },
+          select: { startDate: true, endDate: true, pricePerNight: true, minNights: true },
         },
         blockedDates: {
           where: {
@@ -579,11 +590,25 @@ export class VillasService {
       result.reasons.push('SYNC_UNHEALTHY');
       result.available = false;
     }
+    // Fiyat, müsait olmasa da döner: misafir "neden bu tutar" sorusunu tarihleri
+    // düzeltirken de görebilmeli.
+    const quote = quoteStay(villa, dates);
+    const payment = readPaymentSettings(await this.settings.get('payments'));
+
     return {
       from: formatCalendarDate(dates.checkIn),
       to: formatCalendarDate(dates.checkOut),
       bookingMode: villa.bookingMode,
       ...result,
+      quote: {
+        currency: quote.currency,
+        nights: quote.priceSnapshot.nights,
+        accommodationAmount: quote.accommodationAmount,
+        cleaningFeeAmount: quote.cleaningFeeAmount,
+        depositAmount: quote.depositAmount,
+        totalAmount: quote.totalAmount,
+        prepaymentAmount: prepaymentFor(quote.totalAmount, payment),
+      },
     };
   }
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatPrice } from '@/lib/api';
 import { listConcepts, listRegions } from '@/lib/adminApi';
 import {
   createVillaApi,
@@ -37,7 +38,7 @@ import type { CalendarEvent } from '@/lib/bookingApi';
 
 type Region = { id: string; slug: string; name: string };
 
-type TabId = 'temel' | 'kapasite' | 'odalar' | 'konsept' | 'fiyat' | 'kurallar' | 'gorseller' | 'fiyatKurallari' | 'takvim';
+type TabId = 'temel' | 'kapasite' | 'odalar' | 'konsept' | 'fiyat' | 'kurallar' | 'gorseller' | 'takvim';
 
 const TABS: { id: TabId; label: string; editOnly?: boolean }[] = [
   { id: 'temel', label: '1. Temel Bilgiler' },
@@ -47,8 +48,7 @@ const TABS: { id: TabId; label: string; editOnly?: boolean }[] = [
   { id: 'fiyat', label: '5. Fiyatlandırma' },
   { id: 'kurallar', label: '6. Kurallar' },
   { id: 'gorseller', label: '7. Görseller', editOnly: true },
-  { id: 'fiyatKurallari', label: '8. Sezonluk Fiyatlar', editOnly: true },
-  { id: 'takvim', label: '9. Takvim', editOnly: true },
+  { id: 'takvim', label: '8. Takvim', editOnly: true },
 ];
 
 const BLOCK_KIND_OPTIONS = [
@@ -514,6 +514,31 @@ export default function VillaForm({
                 />
               </Field>
             )}
+
+            {/* Baz fiyatla aynı ekranda: sezonluk kuralları görmek için ayrı sekmeye
+                geçmek gerekmiyor — ikisi birlikte değişince etkiyi burada görürsünüz. */}
+            <div className="border-t border-line pt-8">
+              <h3 className="font-display text-xl font-light text-ink">Sezonluk Fiyat Kuralları</h3>
+              <p className="mt-2 text-[0.85rem] text-muted">
+                Belirli tarih aralıkları için baz fiyatı ve minimum konaklamayı geçersiz kılın.
+              </p>
+              <div className="mt-6">
+                {isCreate ? (
+                  <p className="rounded-xl border border-dashed border-line bg-sand/30 px-5 py-6 text-center text-[0.88rem] text-muted">
+                    Villayı oluşturduktan sonra sezonluk fiyat kuralları ekleyebilirsiniz.
+                  </p>
+                ) : (
+                  <PriceRulesManager
+                    api={api}
+                    villaId={villaId!}
+                    rules={villa?.priceRules ?? []}
+                    basePrice={form.pricePerNight}
+                    currency={form.currency}
+                    onChange={load}
+                  />
+                )}
+              </div>
+            </div>
           </Section>
           )}
 
@@ -582,21 +607,11 @@ export default function VillaForm({
             )
           )}
 
-          {tab === 'fiyatKurallari' && (
-            isCreate ? (
-              <EditOnlyNotice />
-            ) : (
-              <Section n="8" title="Sezonluk Fiyat Kuralları">
-                <PriceRulesManager api={api} villaId={villaId!} rules={villa?.priceRules ?? []} onChange={load} />
-              </Section>
-            )
-          )}
-
           {tab === 'takvim' && (
             isCreate ? (
               <EditOnlyNotice />
             ) : (
-              <Section n="9" title="Takvim ve Dış Kanallar" hint="Rezervasyonları, manuel kapatmaları ve iCal kaynaklarını tek yerde yönetin.">
+              <Section n="8" title="Takvim ve Dış Kanallar" hint="Rezervasyonları, manuel kapatmaları ve iCal kaynaklarını tek yerde yönetin.">
                 <CalendarManager api={api} villaId={villaId!} blocks={villa?.blockedDates ?? []} onChange={load} />
               </Section>
             )
@@ -611,7 +626,7 @@ export default function VillaForm({
 function EditOnlyNotice() {
   return (
     <p className="rounded-xl border border-dashed border-line bg-sand/30 px-5 py-6 text-center text-[0.88rem] text-muted">
-      Görsel yükleme, sezonluk fiyat kuralları ve takvim bloklama, villa oluşturulduktan sonra açılır.
+      Görsel yükleme ve takvim bloklama, villa oluşturulduktan sonra açılır.
     </p>
   );
 }
@@ -844,85 +859,233 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
   });
 }
 
+const EMPTY_RULE_FORM = { startDate: '', endDate: '', pricePerNight: '', minNights: '' };
+
 function PriceRulesManager({
   api,
   villaId,
   rules,
+  basePrice,
+  currency,
   onChange,
 }: {
   api: VillaApi;
   villaId: string;
   rules: VillaPriceRule[];
+  basePrice: number;
+  currency: string;
   onChange: () => void;
 }) {
-  const [form, setForm] = useState({ startDate: '', endDate: '', pricePerNight: '', minNights: '' });
+  const [form, setForm] = useState(EMPTY_RULE_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  async function add() {
+  const invalidRange = Boolean(form.startDate && form.endDate && form.startDate >= form.endDate);
+  const overlap = useMemo(() => {
+    if (!form.startDate || !form.endDate || invalidRange) return false;
+    return rules.some(
+      (r) => r.id !== editingId && form.startDate < r.endDate.slice(0, 10) && form.endDate > r.startDate.slice(0, 10),
+    );
+  }, [rules, form.startDate, form.endDate, editingId, invalidRange]);
+
+  function startEdit(rule: VillaPriceRule) {
+    setEditingId(rule.id);
+    setForm({
+      startDate: rule.startDate.slice(0, 10),
+      endDate: rule.endDate.slice(0, 10),
+      pricePerNight: String(rule.pricePerNight),
+      minNights: rule.minNights ? String(rule.minNights) : '',
+    });
     setError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(EMPTY_RULE_FORM);
+    setError(null);
+  }
+
+  async function save() {
+    setError(null);
+    setBusy(true);
     try {
+      // Kural düzenlemesi için ayrı bir PATCH ucu yok: eskiyi silip yenisini aynı
+      // işlemde oluşturuyoruz. Aradaki anda kural kısa süreliğine kaybolur — bu bir
+      // admin ekranı, hiçbir rezervasyon akışı fiyatı bu anda okumuyor.
+      if (editingId) await api.removePriceRule(villaId, editingId);
       await api.addPriceRule(villaId, {
         startDate: form.startDate,
         endDate: form.endDate,
         pricePerNight: Number(form.pricePerNight),
         minNights: form.minNights ? Number(form.minNights) : undefined,
       });
-      setForm({ startDate: '', endDate: '', pricePerNight: '', minNights: '' });
+      cancelEdit();
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Eklenemedi.');
+      setError(e instanceof Error ? e.message : 'Kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    setBusy(true);
+    try {
+      await api.removePriceRule(villaId, id);
+      if (editingId === id) cancelEdit();
+      onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Silinemedi.');
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div>
-      <div className="divide-y divide-line border-y border-line">
+      <MonthlyPricePreview rules={rules} basePrice={basePrice} currency={currency} />
+
+      <div className="mt-6 divide-y divide-line border-y border-line">
         {rules.map((r) => (
-          <div key={r.id} className="flex items-center justify-between gap-4 py-3">
+          <div
+            key={r.id}
+            className={`flex flex-wrap items-center justify-between gap-3 py-3 ${editingId === r.id ? 'bg-sand/40' : ''}`}
+          >
             <span className="text-[0.88rem] text-ink">
               {fmtDate(r.startDate)} – {fmtDate(r.endDate)}
             </span>
             <span className="text-[0.88rem] text-muted">
-              ₺{r.pricePerNight.toLocaleString('tr-TR')} / gece{r.minNights ? ` · min ${r.minNights} gece` : ''}
+              {formatPrice(r.pricePerNight, currency)} / gece{r.minNights ? ` · min ${r.minNights} gece` : ''}
             </span>
-            <button
-              onClick={async () => {
-                await api.removePriceRule(villaId, r.id);
-                onChange();
-              }}
-              className="text-[0.8rem] text-muted transition-colors hover:text-red-700"
-            >
-              Sil
-            </button>
+            <span className="flex gap-3">
+              <button
+                onClick={() => startEdit(r)}
+                disabled={busy}
+                className="text-[0.8rem] text-muted transition-colors hover:text-ink disabled:opacity-40"
+              >
+                Düzenle
+              </button>
+              <button
+                onClick={() => remove(r.id)}
+                disabled={busy}
+                className="text-[0.8rem] text-muted transition-colors hover:text-red-700 disabled:opacity-40"
+              >
+                Sil
+              </button>
+            </span>
           </div>
         ))}
         {!rules.length && <p className="py-3 text-[0.85rem] text-muted">Henüz sezonluk kural yok — baz fiyat geçerli.</p>}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <TextInput type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
-        <TextInput type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
-        <TextInput
-          type="number"
-          placeholder="Gecelik ₺"
-          value={form.pricePerNight}
-          onChange={(e) => setForm((f) => ({ ...f, pricePerNight: e.target.value }))}
-        />
-        <TextInput
-          type="number"
-          placeholder="Min gece (ops.)"
-          value={form.minNights}
-          onChange={(e) => setForm((f) => ({ ...f, minNights: e.target.value }))}
-        />
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Field label="Başlangıç">
+          <TextInput type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+        </Field>
+        <Field label="Bitiş">
+          <TextInput type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+        </Field>
+        <Field label="Gecelik fiyat">
+          <TextInput
+            type="number"
+            min={0}
+            placeholder={currency}
+            value={form.pricePerNight}
+            onChange={(e) => setForm((f) => ({ ...f, pricePerNight: e.target.value }))}
+          />
+        </Field>
+        <Field label="Min gece (ops.)">
+          <TextInput
+            type="number"
+            min={1}
+            value={form.minNights}
+            onChange={(e) => setForm((f) => ({ ...f, minNights: e.target.value }))}
+          />
+        </Field>
       </div>
+
+      {invalidRange && <p className="mt-2 text-[0.82rem] text-red-700">Bitiş tarihi başlangıçtan sonra olmalı.</p>}
+      {!invalidRange && overlap && (
+        <p className="mt-2 text-[0.82rem] text-red-700">Bu tarih aralığı mevcut bir kuralla çakışıyor.</p>
+      )}
       {error && <p className="mt-2 text-[0.82rem] text-red-700">{error}</p>}
-      <button
-        onClick={add}
-        disabled={!form.startDate || !form.endDate || !form.pricePerNight}
-        className="mt-3 rounded-lg border border-dashed border-line px-4 py-2 text-[0.83rem] text-muted transition-colors hover:border-olive-soft hover:text-ink disabled:opacity-40"
-      >
-        + Kural ekle
-      </button>
+
+      <div className="mt-3 flex items-center gap-4">
+        <button
+          onClick={save}
+          disabled={busy || !form.startDate || !form.endDate || !form.pricePerNight || invalidRange || overlap}
+          className="rounded-lg border border-dashed border-line px-4 py-2 text-[0.83rem] text-muted transition-colors hover:border-olive-soft hover:text-ink disabled:opacity-40"
+        >
+          {editingId ? (busy ? 'Kaydediliyor…' : 'Kuralı güncelle') : busy ? 'Ekleniyor…' : '+ Kural ekle'}
+        </button>
+        {editingId && (
+          <button onClick={cancelEdit} disabled={busy} className="text-[0.82rem] text-muted hover:text-ink disabled:opacity-40">
+            Vazgeç
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Belirli bir gün için geçerli fiyat: kapsayan bir sezon kuralı varsa o, yoksa baz fiyat. */
+function priceOnDay(day: string, rules: VillaPriceRule[], basePrice: number) {
+  const rule = rules.find((r) => r.startDate.slice(0, 10) <= day && r.endDate.slice(0, 10) > day);
+  return rule?.pricePerNight ?? basePrice;
+}
+
+/** Bir ayın gün gün fiyatlarından min/max — kısmen kapsayan kurallar da doğru yansır. */
+function monthPriceRange(monthStart: Date, rules: VillaPriceRule[], basePrice: number) {
+  const year = monthStart.getUTCFullYear();
+  const month = monthStart.getUTCMonth();
+  const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  let min = Infinity;
+  let max = -Infinity;
+  for (let day = 1; day <= days; day += 1) {
+    const price = priceOnDay(new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10), rules, basePrice);
+    min = Math.min(min, price);
+    max = Math.max(max, price);
+  }
+  return { min, max };
+}
+
+/** Baz fiyat ve sezonluk kuralların önümüzdeki 12 aya yansımasını tek bakışta gösterir. */
+function MonthlyPricePreview({ rules, basePrice, currency }: { rules: VillaPriceRule[]; basePrice: number; currency: string }) {
+  const months = useMemo(() => {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    return Array.from({ length: 12 }, (_, i) => {
+      const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1));
+      const { min, max } = monthPriceRange(monthStart, rules, basePrice);
+      return {
+        key: monthStart.toISOString().slice(0, 7),
+        label: monthStart.toLocaleDateString('tr-TR', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+        min,
+        max,
+        overridden: min !== basePrice || max !== basePrice,
+      };
+    });
+  }, [rules, basePrice]);
+
+  return (
+    <div>
+      <span className="eyebrow text-muted">Önümüzdeki 12 ay — gecelik fiyat</span>
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        {months.map((m) => (
+          <div
+            key={m.key}
+            className={`shrink-0 rounded-lg border px-3 py-2 text-center ${
+              m.overridden ? 'border-gold/40 bg-gold/10' : 'border-line bg-sand/20'
+            }`}
+          >
+            <p className="text-[0.7rem] capitalize text-muted">{m.label}</p>
+            <p className="mt-0.5 whitespace-nowrap text-[0.8rem] text-ink">
+              {m.min === m.max ? formatPrice(m.min, currency) : `${formatPrice(m.min, currency)}–${formatPrice(m.max, currency)}`}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

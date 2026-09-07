@@ -23,9 +23,20 @@ export class BookingsController {
     return this.bookings.createHold(dto, req.user.sub, idempotencyKey);
   }
 
+  @Get()
+  list(@Req() req: AuthRequest) {
+    return this.bookings.listOwn(req.user.sub);
+  }
+
   @Get(':id')
   get(@Param('id') id: string, @Req() req: AuthRequest) {
     return this.bookings.getOwn(id, req.user.sub);
+  }
+
+  @Post(':id/payment-declared')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  declarePayment(@Param('id') id: string, @Req() req: AuthRequest) {
+    return this.bookings.declarePayment(id, req.user.sub);
   }
 
   @Delete(':id/hold')

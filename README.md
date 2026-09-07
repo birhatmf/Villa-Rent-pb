@@ -12,7 +12,7 @@ Son güncelleme: **7 Eylül 2026**
 | 2 — Rezervasyon çekirdeği | Tamamlandı | `HOLD`/`CONFIRMED`, idempotency, villa satır kilidi ve PostgreSQL çakışma kısıtı |
 | 3 — Takvim yönetimi | Tamamlandı | Admin/ev sahibi takvimi, blok nedenleri, sürüm kontrolü ve işlem geçmişi |
 | 4 — iCal | Teknik teslim tamamlandı | Güvenli import/export, senkronizasyon işçisi, kaynak sağlığı ve çakışma görünürlüğü |
-| 5 — Online ödeme | Başlanmadı | Ödeme sağlayıcısı, webhook ve iade/uzlaştırma ancak ihtiyaç kesinleştiğinde eklenecek |
+| 5 — Kapora ve ödeme | Havale akışı tamamlandı | Uçtan uca rezervasyon adımları, admin tanımlı IBAN'a kapora havalesi, filtrelenebilir rezervasyon listesi ve ayrı detay/onay ekranı. POS/webhook ihtiyaç kesinleştiğinde eklenecek |
 
 Ana dalın Aşama 4 referansı: `df16d6d`.
 
@@ -65,6 +65,7 @@ npx prisma db execute --file prisma/sql/20260906_availability_foundation.sql --s
 npx prisma db execute --file prisma/sql/20260906_booking_core.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260906_calendar_management.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260907_ical_sync.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260907_booking_payment.sql --schema prisma/schema.prisma
 npm run db:seed
 npm run dev
 ```
@@ -105,6 +106,7 @@ Günlük güvenli kontroller:
 cd backend
 npm run build
 npm run test:availability
+npm run test:payment
 npm run test:ical-parser
 npm run test:ical-security
 npx prisma validate
@@ -135,6 +137,20 @@ Testlerde kullanılan `DATABASE_URL` gerçek veya paylaşılan geliştirme verit
 
 Canlı pilotta villa düzenleme ekranından önce kaynağı önizleyin, sonra bağlayın. İlk başarılı eşitlemeden sonra kaynak sağlığını, kapsama tarihlerini ve çakışma sayısını aynı bölümden kontrol edin. Üretilen export bağlantısı bir sırdır; yenilendiğinde eski bağlantı geçersiz olur.
 
+## Kiralama akışı ve kapora
+
+1. Misafir villa detayında tarih ve kişi sayısını seçer; takvim her gecenin fiyatını gösterir, sağdaki kutu toplamı ve kaporayı canlı hesaplar.
+2. **Rezervasyona devam et** ile detay adımına geçilir. Oturum zorunludur; iletişim bilgileri hesaptan doldurulur.
+3. Onaylandığında 10 dakikalık `HOLD` açılır ve ödeme adımı görünür: kapora tutarı, admin tanımlı IBAN ve rezervasyona özel havale açıklaması (`MV-XXXXXX`).
+4. Misafir **Havaleyi gönderdim** dediğinde kayıt `DECLARED` olur ve bekletme adminin belirlediği süre kadar (varsayılan 24 saat) uzatılır — dekont incelenirken geceler açılmaz.
+5. Admin **Yönetim → Rezervasyonlar** listesini durum, villa, ödeme, kanal ve konaklama tarihine göre filtreler. Rezervasyon detayında misafir, ücret ve işlem geçmişini birlikte görüp havaleyi doğruladığında kayıt `CONFIRMED`, ödeme `PAID` olur. Sürüm kontrolü aynı rezervasyona eş zamanlı işlem yapılmasını engeller.
+
+Takvim operasyonel doluluk görünümü olarak `/admin/takvim` altında kalır. Rezervasyon değiştirme, onay ve iptal işlemleri `/admin/rezervasyonlar/[id]` detay ekranından yapılır.
+
+Tutarlar tek bir yerde, backend'deki `quoteStay` ile hesaplanır; arayüz para aritmetiği yapmaz. Kapora oranı/sabit tutarı, ödeme süresi ve IBAN **Yönetim → Ödeme ayarları** ekranından belirlenir. Bu ayarlar halka açık uçtan yayınlanmaz; IBAN yalnızca kendi rezervasyonunu görüntüleyen misafire döner.
+
+Hasar depozitosu (`depositAmount`) kaporadan ayrıdır: girişte alınır, çıkışta iade edilir.
+
 ## Proje yapısı
 
 ```text
@@ -147,7 +163,7 @@ backend/
 frontend/
   app/                       Site, admin ve ev sahibi sayfaları
   components/site/           Public villa ve müsaitlik arayüzleri
-  components/admin/          Yönetim takvimi
+  components/admin/          Rezervasyon listesi/detayı ve yönetim takvimi
   components/villas/         Ortak villa düzenleme formu ve iCal kaynak ekranı
 docs/plans/                  Ürün ve teknik uygulama planları
 ```
@@ -158,4 +174,5 @@ docs/plans/                  Ürün ve teknik uygulama planları
 2. Sağlayıcıda bir test blokajı oluşturup import gecikmesini ve tarih sınırlarını ölçün.
 3. My Villa export bağlantısını sağlayıcıya ekleyip onaylı rezervasyon ve manuel kapatma davranışını doğrulayın.
 4. Çakışma ve kaynak hatası ekranlarını operasyon sorumlusuyla kabul testinden geçirin.
-5. Pilot kararlı olduktan sonra Aşama 5 ödeme sağlayıcısı ve webhook sözleşmesini seçin.
+5. Kapora akışını gerçek bir havaleyle uçtan uca deneyin: ayarları girin, rezervasyon açın, bildirim yapın ve admin onayını doğrulayın.
+6. Hacim arttığında otomatik dekont eşleştirmesi veya POS entegrasyonunu değerlendirin; mevcut akış `paymentStatus` üzerinden genişletilebilir.

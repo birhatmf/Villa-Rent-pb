@@ -23,6 +23,8 @@ export type CalendarEvent = {
   holdExpiresAt?: string | null;
   totalAmount?: number;
   currency?: string;
+  paymentStatus?: 'NONE' | 'PENDING' | 'DECLARED' | 'PAID';
+  prepaymentAmount?: number;
   sourceId?: string | null;
   syncStatus?: string | null;
   lastSyncAt?: string | null;
@@ -55,10 +57,15 @@ export type CalendarAudit = {
   actor: { name: string; role: string } | null;
 };
 
+export type BookingPaymentStatus = 'NONE' | 'PENDING' | 'DECLARED' | 'PAID';
+export type BookingChannel = 'WEBSITE' | 'ADMIN';
+
 export type Booking = {
   id: string;
   villaId: string;
+  guestId: string | null;
   status: BookingStatus;
+  channel: BookingChannel;
   checkIn: string;
   checkOut: string;
   adults: number;
@@ -67,10 +74,26 @@ export type Booking = {
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
+  accommodationAmount: number;
+  cleaningFeeAmount: number;
+  depositAmount: number;
   totalAmount: number;
   currency: string;
+  paymentStatus: BookingPaymentStatus;
+  prepaymentAmount: number;
+  paymentDeclaredAt: string | null;
+  holdExpiresAt: string | null;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancellationNote: string | null;
+  createdAt: string;
+  updatedAt: string;
   version: number;
+  priceSnapshot: unknown;
+  villa: { title: string; slug: string };
 };
+
+export type BookingDetail = Booking & { audits: CalendarAudit[] };
 
 const query = (values: Record<string, string | number | undefined>) => {
   const params = new URLSearchParams();
@@ -78,13 +101,46 @@ const query = (values: Record<string, string | number | undefined>) => {
   return params.toString();
 };
 
+export type BookingListParams = {
+  status?: string;
+  paymentStatus?: string;
+  channel?: string;
+  villaId?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+};
+export type BookingListResult = { items: Booking[]; total: number; page: number; pageSize: number };
+
+/** Ayrı bir rezervasyon listesi/detay sayfası hem admin hem host tarafında bu ortak şekli kullanır. */
+export type BookingApiClient = {
+  list: (params?: BookingListParams) => Promise<BookingListResult>;
+  get: (id: string) => Promise<BookingDetail>;
+  change: (id: string, data: { from: string; to: string; adults: number; children: number; infants: number; version: number }) => Promise<Booking>;
+  confirm: (id: string, version: number) => Promise<Booking>;
+  cancel: (id: string, version: number, note: string) => Promise<Booking>;
+};
+
+/** Host kendi villalarının rezervasyonlarını görür/onaylar — misafir iletişimi CONFIRMED olana kadar backend'de gizlenir. */
+export const hostBookingApi: BookingApiClient = {
+  list: (params = {}) => req<BookingListResult>(`/host/bookings?${query({ pageSize: 20, ...params })}`),
+  get: (id: string) => req<BookingDetail>(`/host/bookings/${id}`),
+  change: (id: string, data) => req<Booking>(`/host/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  confirm: (id: string, version: number) =>
+    req<Booking>(`/host/bookings/${id}/confirm`, { method: 'POST', body: JSON.stringify({ version }) }),
+  cancel: (id: string, version: number, note: string) =>
+    req<Booking>(`/host/bookings/${id}/cancel`, { method: 'POST', body: JSON.stringify({ version, note }) }),
+};
+
 export const bookingApi = {
   calendar: (from: string, to: string) =>
     req<CalendarData>(`/admin/calendar?${query({ from, to })}`),
   audit: (villaId?: string) =>
     req<CalendarAudit[]>(`/admin/calendar/audit?${query({ villaId, limit: 30 })}`),
-  list: (status?: string) =>
-    req<{ items: Booking[]; total: number }>(`/admin/bookings?${query({ status, pageSize: 100 })}`),
+  list: (params: BookingListParams = {}) => req<BookingListResult>(`/admin/bookings?${query({ pageSize: 20, ...params })}`),
+  get: (id: string) => req<BookingDetail>(`/admin/bookings/${id}`),
   create: (data: {
     villaId: string;
     from: string;

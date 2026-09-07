@@ -8,6 +8,7 @@ import {
   Length,
   Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -23,6 +24,10 @@ export class StayDto {
 
 export class CreateHoldDto extends StayDto {
   @IsString() villaId!: string;
+  // Boş bırakılırsa üyenin hesap bilgileri kullanılır (bkz. BookingsService.createHold).
+  @IsOptional() @IsString() @Length(2, 100) customerName?: string;
+  @IsOptional() @IsEmail() customerEmail?: string;
+  @IsOptional() @IsString() @Length(5, 30) customerPhone?: string;
 }
 
 export class AdminCreateBookingDto extends StayDto {
@@ -46,10 +51,17 @@ export class CancelBookingDto extends BookingVersionDto {
 }
 
 const BOOKING_STATUSES = ['HOLD', 'CONFIRMED', 'EXPIRED', 'CANCELLED'] as const;
+const BOOKING_PAYMENT_STATUSES = ['NONE', 'PENDING', 'DECLARED', 'PAID'] as const;
+const BOOKING_CHANNELS = ['WEBSITE', 'ADMIN'] as const;
 
 export class BookingListDto {
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: (typeof BOOKING_STATUSES)[number];
+  @IsOptional() @IsIn(BOOKING_PAYMENT_STATUSES) paymentStatus?: (typeof BOOKING_PAYMENT_STATUSES)[number];
+  @IsOptional() @IsIn(BOOKING_CHANNELS) channel?: (typeof BOOKING_CHANNELS)[number];
   @IsOptional() @IsString() villaId?: string;
+  @IsOptional() @IsString() @MaxLength(200) q?: string;
+  @IsOptional() @IsString() @Matches(DATE_RE) from?: string;
+  @IsOptional() @IsString() @Matches(DATE_RE) to?: string;
   @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) page?: number;
   @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) @Max(100) pageSize?: number;
 }

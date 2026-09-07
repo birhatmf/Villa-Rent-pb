@@ -1,5 +1,5 @@
-import BookingCalendar from '@/components/admin/BookingCalendar';
+import ReservationsList from '@/components/admin/ReservationsList';
 
 export default function ReservationsPage() {
-  return <BookingCalendar />;
+  return <ReservationsList />;
 }

@@ -33,6 +33,14 @@ npx prisma db execute --file prisma/sql/20260906_calendar_management.sql --schem
 npx prisma db execute --file prisma/sql/20260907_ical_sync.sql --schema prisma/schema.prisma
 ```
 
+`20260907_booking_payment.sql`, rezervasyon kaporası ve havale bildirimi alanlarını ekler. Mevcut rezervasyonlar `paymentStatus = 'NONE'` kalır; ödeme akışından önce açıldıkları için geriye dönük kapora borcu oluşmaz:
+
+```sh
+npx prisma db execute --file prisma/sql/20260907_booking_payment.sql --schema prisma/schema.prisma
+```
+
+`Booking_prepayment_range` kısıtı kaporanın 0 ile toplam tutar arasında kalmasını garanti eder; rezervasyon tarihleri değiştiğinde kapora yeniden hesaplanır.
+
 iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 16 karakterlik, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Tanımlı değilse mevcut `JWT_SECRET` kullanılır; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
 
 Kalıcı Prisma Migrate geçmişine geçerken önce mevcut şema için baseline oluşturulup bu migration uygulanmış olarak işaretlenmelidir. Canlı veritabanı resetlenmez ve veri silen seed komutu kullanılmaz.

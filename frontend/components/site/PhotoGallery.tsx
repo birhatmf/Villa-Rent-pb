@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
 import FavoriteButton from './FavoriteButton';
+import ShareButton from './ShareButton';
 
 type Img = { id: string; url: string };
 
@@ -72,7 +73,10 @@ export default function PhotoGallery({
             </button>
           );
         })}
-        <FavoriteButton villaId={villaId} className="absolute right-4 top-4" />
+        <div className="absolute right-4 top-4 flex items-center gap-2">
+          <ShareButton title={title} />
+          <FavoriteButton villaId={villaId} />
+        </div>
       </div>
 
       {open !== null && (

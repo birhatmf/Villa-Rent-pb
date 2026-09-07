@@ -5,6 +5,7 @@ import { BookingsService } from '../src/bookings/bookings.service';
 import { CalendarService } from '../src/bookings/calendar.service';
 import { OccupancyService } from '../src/bookings/occupancy.service';
 import { PrismaService } from '../src/prisma.service';
+import { SettingsService } from '../src/settings/settings.service';
 import { VillasService } from '../src/villas/villas.service';
 
 if (process.env.ALLOW_BOOKING_TEST !== '1') {
@@ -13,9 +14,10 @@ if (process.env.ALLOW_BOOKING_TEST !== '1') {
 
 const prisma = new PrismaService();
 const occupancy = new OccupancyService(prisma);
-const bookings = new BookingsService(prisma, occupancy);
+const settings = new SettingsService(prisma);
+const bookings = new BookingsService(prisma, occupancy, settings);
 const calendar = new CalendarService(prisma);
-const villas = new VillasService(prisma, occupancy);
+const villas = new VillasService(prisma, occupancy, settings);
 const ownerPrefix = `booking-test-${Date.now()}`;
 let guestId: string | undefined;
 
@@ -226,7 +228,11 @@ async function main() {
 
 main()
   .finally(async () => {
-    if (guestId) await prisma.booking.deleteMany({ where: { guestId } });
+    // idempotencyKey ile temizle, guestId ile değil: `managed` rezervasyonu
+    // createConfirmed üzerinden guestId'siz (admin kanalı) açılıyor, geçen
+    // koşuda tam da bu yüzden kalıcı olarak DB'de kaldı ve sonraki koşuyu
+    // DATES_UNAVAILABLE ile çakıştırdı.
+    if (guestId) await prisma.booking.deleteMany({ where: { idempotencyKey: { startsWith: ownerPrefix } } });
     await prisma.villaBlockedDate.deleteMany({ where: { note: ownerPrefix } });
     await prisma.user.deleteMany({ where: { email: { startsWith: ownerPrefix } } });
     await prisma.$disconnect();

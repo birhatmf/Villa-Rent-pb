@@ -90,3 +90,36 @@ export function evaluateAvailability(
   }
   return { available: reasons.length === 0, nights: dates.nights, minimumNights, reasons };
 }
+
+export type QuotableVilla = {
+  currency: string;
+  pricePerNight: number;
+  cleaningFee: number;
+  cleaningFeeThresholdNights: number;
+  depositAmount: number;
+  priceRules: { startDate: Date; endDate: Date; pricePerNight: number }[];
+};
+
+/**
+ * Konaklama tutarı. Kesin rezervasyon ve halka açık fiyat önizlemesi AYNI
+ * fonksiyonu kullanır — misafirin gördüğü tutarla kaydedilen tutar ayrışamaz.
+ * `depositAmount` hasar depozitosudur; kapora (`prepaymentAmount`) ayrıdır.
+ */
+export function quoteStay(villa: QuotableVilla, dates: StayDates) {
+  const nights: { date: string; amount: number }[] = [];
+  for (let cursor = dates.checkIn.getTime(); cursor < dates.checkOut.getTime(); cursor += DAY_MS) {
+    const day = new Date(cursor);
+    const rule = villa.priceRules.find((candidate) => candidate.startDate <= day && candidate.endDate > day);
+    nights.push({ date: formatCalendarDate(day), amount: rule?.pricePerNight ?? villa.pricePerNight });
+  }
+  const accommodationAmount = nights.reduce((sum, night) => sum + night.amount, 0);
+  const cleaningFeeAmount = dates.nights < villa.cleaningFeeThresholdNights ? villa.cleaningFee : 0;
+  return {
+    currency: villa.currency,
+    accommodationAmount,
+    cleaningFeeAmount,
+    depositAmount: villa.depositAmount,
+    totalAmount: accommodationAmount + cleaningFeeAmount,
+    priceSnapshot: { nights, cleaningFeeAmount, depositAmount: villa.depositAmount },
+  };
+}

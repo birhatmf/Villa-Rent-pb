@@ -179,6 +179,15 @@ enum BookingChannel {
   ADMIN
 }
 
+/// NONE: ödeme beklenmeyen kayıt (admin girişi). PENDING: kapora bekleniyor.
+/// DECLARED: misafir havaleyi bildirdi. PAID: admin dekontu doğruladı.
+enum BookingPaymentStatus {
+  NONE
+  PENDING
+  DECLARED
+  PAID
+}
+
 enum IcalSourceStatus {
   PENDING
   ACTIVE
@@ -410,6 +419,10 @@ model Booking {
   totalAmount         Int
   priceSnapshot       Json
 
+  paymentStatus     BookingPaymentStatus @default(NONE)
+  prepaymentAmount  Int                  @default(0)
+  paymentDeclaredAt DateTime?            @db.Timestamptz(3)
+
   holdExpiresAt    DateTime? @db.Timestamptz(3)
   confirmedAt      DateTime? @db.Timestamptz(3)
   cancelledAt      DateTime? @db.Timestamptz(3)
@@ -426,6 +439,7 @@ model Booking {
   @@unique([idempotencyOwner, idempotencyKey])
   @@index([villaId, status, checkIn, checkOut])
   @@index([guestId, createdAt])
+  @@index([paymentStatus, createdAt])
 }
 
 model IcalSource {
