@@ -65,6 +65,19 @@ npx prisma db execute --file prisma/sql/20260908_service_requests.sql --schema p
 npx prisma db execute --file prisma/sql/20260908_verified_reviews.sql --schema prisma/schema.prisma
 ```
 
+`20260908_info_pages.sql`, header/footer'da bağlantısı bulunan ama veritabanında
+kaydı olmayan kurumsal ve yasal CMS sayfalarını (Hakkımızda, İletişim, SSS,
+İptal Koşulları, KVKK, Gizlilik, Çerez ve Kullanım Koşulları) ekler. İçerik
+JSON'ları `backend/prisma/info-pages.ts` sabitlerinden üretilmiştir; yalnızca
+eksik sayfaları ekler, mevcut veriye dokunmaz ve tekrar çalıştırılabilir:
+
+```sh
+npx prisma db execute --file prisma/sql/20260908_info_pages.sql --schema prisma/schema.prisma
+```
+
+Sayfalar oluşturulduktan sonra canlı içerik `/admin/pages` üzerinden yönetilir;
+bu dosya yalnızca ilk yükleme içindir.
+
 iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 16 karakterlik, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Tanımlı değilse mevcut `JWT_SECRET` kullanılır; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
 
 Kalıcı Prisma Migrate geçmişine geçerken önce mevcut şema için baseline oluşturulup bu migration uygulanmış olarak işaretlenmelidir. Canlı veritabanı resetlenmez ve veri silen seed komutu kullanılmaz.

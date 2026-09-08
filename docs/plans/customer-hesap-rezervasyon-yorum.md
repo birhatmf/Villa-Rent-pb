@@ -11,8 +11,10 @@ kontrolü eklendi. Admin rol/pasiflik değişiklikleri eski tokenları iptal edi
 son aktif admin ve bağlı villası olan owner korunuyor. Gerçek olmayan e-posta
 bildirim metinleri kaldırıldı.
 
-C1 içinde e-posta doğrulama, parola sıfırlama, onay metni sürümü ve hesap kapatma;
-C2–C4 kapsamındaki talep, bildirim ve yorum modülleri sıradaki teslimlerdir.
+C2 talep/değişiklik/iptal akışı tamamlandı. C4 doğrulanmış yorum modülünde de
+30 günlük uygunluk, rezervasyon başına tek yorum, 24 saatlik düzenleme, admin
+moderasyonu, owner yanıtı ve public puan özeti hazırdır. C3 bildirim/outbox ve
+konaklama talimatları sıradaki teslimdir.
 
 Bu belge, mevcut kod üzerinden customer/misafir yolculuğunu inceler ve satış sonrası gerekli modülleri sıralar. Amaç ilk sürümde güvenilir bir hesap, rezervasyon self servis alanı ve yalnızca gerçekten konaklayan kişinin yorum yapabildiği sade bir sistem kurmaktır.
 
@@ -24,13 +26,13 @@ Bu belge, mevcut kod üzerinden customer/misafir yolculuğunu inceler ve satış
 | Giriş/çıkış | Büyük ölçüde hazır | HTTP-only JWT, genel hata, hız sınırı, güvenli `next`, parola değiştirme ve oturum iptali | Parola sıfırlama ve aktif cihaz listesi yok |
 | Profil | Kısmen hazır | Ad ve telefon düzenleme, e-posta/üyelik bilgisi görüntüleme | Doğrulamalı e-posta değişimi, hesap kapatma ve veri talebi yok |
 | Favoriler | Hazır | Ekleme, kaldırma, hesapta listeleme ve her istekte aktif hesap kontrolü | Koleksiyon/paylaşım sonraki kapsam |
-| Rezervasyon oluşturma | Instant villada hazır | Müsaitlik/fiyat yeniden kontrolü, idempotent `HOLD`, havale bildirimi | `REQUEST` villa için gerçek talep kaydı yok; bağlantı yalnızca iletişim sayfasına gider |
-| Kendi rezervasyonları | Hazır | `/hesabim/seyahatlerim` altında işlem gereken/yaklaşan/geçmiş/iptal filtreleri, sayfalama ve sahiplik kontrollü detay | Zaman çizgisi ve C2 aksiyonları sırada |
-| Rezervasyon değişikliği | Yok | Admin/host değiştirebilir | Misafir tarih/kişi değişikliği talep edemez |
-| İptal | Kısmen hazır | Misafir yalnızca `HOLD` bırakabilir; onaylı rezervasyonu destek iptal eder | İptal koşulu, iade önizlemesi ve takip edilebilir iptal talebi yok |
+| Rezervasyon oluşturma | Hazır | Instant villada idempotent `HOLD`; talep villasında stok kapatmayan `REQUESTED`; kabul anında yeniden fiyat/stok kontrolü | — |
+| Kendi rezervasyonları | Hazır | `/hesabim/seyahatlerim` altında işlem gereken/yaklaşan/geçmiş/iptal filtreleri, sayfalama, sahiplik kontrollü detay ve C2 talep aksiyonları | Görsel durum zaman çizgisi C3 ile tamamlanacak |
+| Rezervasyon değişikliği | Hazır | Müşteri fiyat/müsaitlik önizlemesiyle talep açar; admin/host karar anında yeniden doğrular | — |
+| İptal | Hazır | Müşteri ve owner takip edilebilir talep açar; yalnızca admin iptal/iade kararını verir | POS olmadığı için banka iadesi manuel yürür |
 | Bildirim | Yok | Durumlar hesap ekranından takip ediliyor; gönderilmeyen e-posta için vaat gösterilmiyor | E-posta sağlayıcısı, kuyruk/outbox ve gönderim kaydı yok |
 | Konaklama bilgileri | Yok | Tarihler ve ödeme özeti var | Giriş adresi/talimatı, ev kuralları snapshot'ı, acil iletişim ve çıkış hatırlatması yok |
-| Yorumlar | Yok | `Villa.rating` ve `reviewCount` alanları public sayfalarda gösteriliyor | Yorum kaydı, uygunluk kontrolü, moderasyon, host yanıtı ve puan güncellemesi yok |
+| Yorumlar | Hazır | Doğrulanmış konaklama uygunluğu, müşteri yorumları, moderasyon, host yanıtı ve transaction içinde puan güncellemesi | Migration hedef veritabanına uygulanmalı |
 | Destek | Harici | WhatsApp/telefon/e-posta bağlantısı | Rezervasyona bağlı destek kaydı ve durum takibi yok |
 | Belge/fiş | Yok | Ücret kırılımı ekranda var | Rezervasyon özeti veya tahsilat belgesi indirilemiyor |
 
@@ -265,12 +267,25 @@ Kupon, cüzdan, sadakat programı, sosyal giriş, MFA/passkey, canlı sohbet, yo
 
 ### Aşama C2 — Talep, değişiklik ve iptal
 
+**Durum: Tamamlandı (8 Eylül 2026).**
+
 - `REQUESTED/DECLINED/WITHDRAWN` akışını `Booking` içinde ekleyin.
 - `BookingServiceRequest` ile değişiklik ve iptal talebini ekleyin.
 - Rezervasyon anındaki koşul/iptal snapshot'ını saklayın.
 - Admin ve host detay ekranına talep kararları ile manuel iade durumu ekleyin.
 
 **Bitiş koşulu:** Talep modundaki villa gerçek kayıt açar; kabul anında stok tekrar doğrulanır; customer onaylı rezervasyon için takip edilebilir talep gönderebilir.
+
+Uygulanan ek uçlar:
+
+```text
+POST /bookings/:id/change-preview
+POST /bookings/:id/change-request
+POST /bookings/:id/cancellation-request
+POST /bookings/service-requests/:id/withdraw
+POST /admin|host/service-requests/:id/resolve
+POST /admin/service-requests/:id/refund
+```
 
 ### Aşama C3 — Bildirim ve konaklama
 
@@ -281,6 +296,8 @@ Kupon, cüzdan, sadakat programı, sosyal giriş, MFA/passkey, canlı sohbet, yo
 **Bitiş koşulu:** Veritabanında başarılı rezervasyon olayı kaybolmadan en az bir kez bildirim işlenir; tekrar çalışma çift bildirim üretmez.
 
 ### Aşama C4 — Doğrulanmış yorumlar
+
+**Durum: Tamamlandı (8 Eylül 2026).**
 
 - `Review` ve `ReviewResponse`, uygunluk servisi ve public listeyi ekleyin.
 - Seyahat detayına “Yorum yaz”, hesaba “Yorumlarım”, villa detayına yorum listesi ekleyin.

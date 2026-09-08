@@ -14,8 +14,10 @@ Son güncelleme: **8 Eylül 2026**
 | 4 — iCal | Teknik teslim tamamlandı | Güvenli import/export, senkronizasyon işçisi, kaynak sağlığı ve çakışma görünürlüğü |
 | 5 — Kapora ve ödeme | Havale akışı tamamlandı | Uçtan uca rezervasyon adımları, admin tanımlı IBAN'a kapora havalesi, filtrelenebilir rezervasyon listesi ve ayrı detay/onay ekranı. POS/webhook ihtiyaç kesinleştiğinde eklenecek |
 | C1 — Customer hesabı | Temel teslim tamamlandı | Ayrı seyahat/owner rotaları, sayfalı seyahat filtreleri, profil ve parola değişikliği, eski oturum iptali, aktif hesap kontrolü |
-| C2–C4 — Customer satış sonrası | Planlandı | Talep/değişiklik/iptal, bildirim ve doğrulanmış konaklama yorumları |
-| O1 — Ev sahibi paneli ve onboarding | Temel teslim tamamlandı | Kapora = platform komisyonu (villa bazlı oran override'ı), onay yalnızca admin'de, ev sahibi için net kazanç görünürlüğü, başvuru → gerçek hesap/villa bağlama, iki gizlilik tutarsızlığının düzeltilmesi |
+| C2 — Customer talepleri | Tamamlandı | Gerçek `REQUESTED` akışı, güvenli kabul/red, fiyatlı değişiklik önizlemesi, takip edilebilir değişiklik/iptal talepleri ve manuel iade durumu |
+| C3 — Bildirim ve konaklama | Planlandı | Transactional outbox, e-posta gönderimi ve giriş/çıkış bilgileri |
+| C4 — Doğrulanmış yorumlar | Tamamlandı | 30 günlük uygunluk, tek yorum, 24 saat düzenleme, admin moderasyonu, owner yanıtı ve public puan özeti |
+| O1 — Ev sahibi paneli ve onboarding | Tamamlandı | Kapora = platform komisyonu (villa bazlı oran override'ı), onay yalnızca admin'de, net kazanç görünürlüğü, başvuru → gerçek hesap/villa bağlama, iki gizlilik tutarsızlığının düzeltilmesi, özet/takvim sekmeleri, owner iptal talebi |
 
 Ana dalın Aşama 4 referansı: `df16d6d`.
 
@@ -74,6 +76,9 @@ npx prisma db execute --file prisma/sql/20260906_calendar_management.sql --schem
 npx prisma db execute --file prisma/sql/20260907_ical_sync.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260907_booking_payment.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260908_customer_account.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_host_onboarding_link.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_service_requests.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_verified_reviews.sql --schema prisma/schema.prisma
 npm run db:seed
 npm run dev
 ```
@@ -116,6 +121,7 @@ npm run build
 npm run test:availability
 npm run test:payment
 npm run test:customer-access
+npm run test:reviews
 npm run test:ical-parser
 npm run test:ical-security
 npx prisma validate
@@ -158,6 +164,12 @@ Canlı pilotta villa düzenleme ekranından önce kaynağı önizleyin, sonra ba
 1. Misafir villa detayında tarih ve kişi sayısını seçer; takvim her gecenin fiyatını gösterir, sağdaki kutu toplamı ve kaporayı canlı hesaplar.
 2. **Rezervasyona devam et** ile detay adımına geçilir. Oturum zorunludur; iletişim bilgileri hesaptan doldurulur.
 3. Onaylandığında 10 dakikalık `HOLD` açılır ve ödeme adımı görünür: kapora tutarı, admin tanımlı IBAN ve rezervasyona özel havale açıklaması (`MV-XXXXXX`).
+
+`REQUEST` modundaki villalarda aynı ekran ödeme bekletmesi yerine gerçek bir
+rezervasyon talebi açar. Talep stok kapatmaz; admin veya owner kabul ederken
+müsaitlik ve fiyat villa kilidi altında yeniden hesaplanır. Onaylı rezervasyonun
+değişiklik ve iptal talepleri müşteri hesabından takip edilir. Kapora iadesi POS
+olmadığı için admin tarafından `bekliyor/tamamlandı/yapılmayacak` olarak kaydedilir.
 4. Misafir **Havaleyi gönderdim** dediğinde kayıt `DECLARED` olur ve bekletme adminin belirlediği süre kadar (varsayılan 24 saat) uzatılır — dekont incelenirken geceler açılmaz.
 5. Admin **Yönetim → Rezervasyonlar** listesini durum, villa, ödeme, kanal ve konaklama tarihine göre filtreler. Rezervasyon detayında misafir, ücret ve işlem geçmişini birlikte görüp havaleyi doğruladığında kayıt `CONFIRMED`, ödeme `PAID` olur. Sürüm kontrolü aynı rezervasyona eş zamanlı işlem yapılmasını engeller.
 

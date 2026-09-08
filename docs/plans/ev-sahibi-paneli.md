@@ -32,8 +32,14 @@ Kapora (misafirin admin'in IBAN'ına yaptığı havale) **platformun tüm komisy
 4. Admin, villa düzenleme ekranındaki **Sahip** alanından (veya `PATCH /admin/villas/:id/host`) mevcut bir villayı bu hesaba atar.
 5. `HostApplication` kalıcı kaynak kayıt olarak durur — iban/ruhsat no/kapasite gibi alanlar başka bir tabloya kopyalanmaz, yalnızca `linkedHostId` ile hangi hesaba bağlandığı işaretlenir.
 
-## 4. Sonraki adım (planlandı, bu turda kurulmadı)
+## 4. P1 — Panel genişletmesi (tamamlandı)
 
-- **Owner dashboard/takvim sekmeleri** — `GET /host/calendar` zaten var ama hiçbir frontend onu çağırmıyor; salt okunur bir özet/takvim sekmesi eklenebilir. Yeni tablo gerekmez.
-- **Owner'dan CONFIRMED iptal talebi** — şu an ev sahibine yalnızca "yönetimle iletişime geçin" notu gösteriliyor. `docs/plans/customer-hesap-rezervasyon-yorum.md` §5'teki `BookingServiceRequest` modeli kurulduğunda owner tarafı da aynı tabloyu (`requestedBy = hostId`) kullanmalı — ikinci bir mekanizma icat edilmemeli.
-- **Bildirimler** — havale bildirildiğinde/rezervasyon onaylandığında kimseye haber gitmiyor; bu, customer planındaki Aşama C3 (`NotificationOutbox`) ile birlikte çözülecek, burada tekrar ele alınmadı.
+- **Özet sekmesi** (`/hesabim/ev-sahibi`) — onay bekleyen sayısı (dekont bekleyen / misafir kaporası bekleyen ayrımıyla), yaklaşan girişler, bu ayki net kazanç toplamı. Hepsi mevcut `GET /host/bookings` çağrılarından client-side toplanır, yeni tablo yok.
+- **Başvuru bilgileri kartı** — yeni `GET /host/onboarding` (`HostOnboardingController`), owner'ın bağlı `HostApplication`'ından iban/ruhsat no/kapasite/adresi salt okunur döner.
+- **Takvim sekmesi** (`/hesabim/ev-sahibi/takvim`) — daha önce hiçbir frontend'in çağırmadığı `GET /host/calendar` ve `GET /host/calendar/audit`'i kullanır. `BookingCalendar` bileşeni `scope: 'admin'|'host'` alacak şekilde genişletildi: host görünümünde rezervasyon/blok oluşturma paneli yok (villa düzenleme ekranındaki Takvim sekmesiyle çakışmasın diye kasıtlı olarak dışarıda bırakıldı), yalnızca çok-villalı görünüm ve rezervasyon detayına geçiş var.
+- **Owner'dan CONFIRMED iptal talebi** — `POST /host/bookings/:id/cancellation-request` booking'e dokunmadan `CANCELLATION_REQUESTED` audit satırı yazar; admin bunu rezervasyon detayının işlem geçmişinden görür. Bilinçli P1 ara çözümü: ayrı bir talep tablosu, durum makinesi veya gelen kutusu/rozet yok — aynı talep birden fazla kez gönderilebilir. `docs/plans/customer-hesap-rezervasyon-yorum.md` §5'teki `BookingServiceRequest` modeli kurulduğunda owner tarafı da aynı tabloyu (`requestedBy = hostId`) kullanmalı; bu ikisi arasında göç gerektiğinde audit satırları kaynak veri olarak kullanılabilir.
+
+## 5. Sonraki adım (planlandı, bu turda kurulmadı)
+
+- **Bildirimler** — havale bildirildiğinde/rezervasyon onaylandığında/iptal talebi geldiğinde kimseye haber gitmiyor; bu, customer planındaki Aşama C3 (`NotificationOutbox`) ile birlikte çözülecek, burada tekrar ele alınmadı.
+- **`BookingServiceRequest`** — kurulduğunda §4'teki audit-log ara çözümü bu tabloya göç eder.

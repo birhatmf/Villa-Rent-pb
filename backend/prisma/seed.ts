@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { INFO_PAGES } from './info-pages';
 
 const prisma = new PrismaClient();
 
@@ -349,7 +350,23 @@ async function main() {
     },
   });
 
-  console.log(`✓ ${REGIONS.length} bölge, ${CONCEPTS.length} konsept, ${VILLAS.length} villa, ${HOME_SECTIONS.length} blok yüklendi.`);
+  for (const p of INFO_PAGES) {
+    await prisma.page.create({
+      data: {
+        slug: p.slug,
+        title: p.title,
+        seoTitle: p.seoTitle,
+        seoDescription: p.seoDescription,
+        sections: {
+          create: p.sections.map((s, order) => ({ type: s.type, content: s.content, order })),
+        },
+      },
+    });
+  }
+
+  console.log(
+    `✓ ${REGIONS.length} bölge, ${CONCEPTS.length} konsept, ${VILLAS.length} villa, ${HOME_SECTIONS.length} blok ve ${INFO_PAGES.length + 1} sayfa yüklendi.`,
+  );
 }
 
 main().finally(() => prisma.$disconnect());
