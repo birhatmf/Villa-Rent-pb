@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { parseCalendarDate, parseStayDates, quoteStay } from '../src/villas/availability';
-import { prepaymentFor, paymentReference, readPaymentSettings } from '../src/bookings/payment';
+import { prepaymentFor, paymentReference, readPaymentSettings, revealGuestContact } from '../src/bookings/payment';
 
 const date = parseCalendarDate;
 const villa = {
@@ -44,5 +44,18 @@ assert.equal(prepaymentFor(3_000, fixed), 3_000);
 assert.equal(prepaymentFor(0, fixed), 0);
 
 assert.equal(paymentReference('ckabcdef123456'), 'MV-123456');
+
+// Villa bazlı komisyon oranı genel oranı geçersiz kılar; sabit tutar hâlâ her ikisini ezer.
+assert.equal(prepaymentFor(22_500, rateOnly, 10), 2_250);
+assert.equal(prepaymentFor(22_500, rateOnly, null), 6_750);
+assert.equal(prepaymentFor(22_500, rateOnly, undefined), 6_750);
+assert.equal(prepaymentFor(22_500, fixed, 10), 5_000);
+// Villa oranı da [0,100] aralığına kırpılır.
+assert.equal(prepaymentFor(22_500, rateOnly, 250), 22_500);
+
+// Misafir iletişimi: admin (hostId yok) her zaman görür; host yalnızca CONFIRMED'de.
+assert.equal(revealGuestContact(undefined, 'HOLD'), true);
+assert.equal(revealGuestContact('host-1', 'HOLD'), false);
+assert.equal(revealGuestContact('host-1', 'CONFIRMED'), true);
 
 console.log('payment-unit: ok');

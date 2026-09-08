@@ -22,6 +22,7 @@ import { JwtGuard } from '../auth/jwt.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import {
   assertCreateRequired,
+  AssignVillaHostDto,
   BlockedDateDto,
   BlockedDateVersionDto,
   IMAGE_CATEGORIES,
@@ -91,6 +92,15 @@ export class AdminVillasController {
     @Req() req: Request & { user: { sub: string } },
   ) {
     return this.villas.review(id, dto.status, dto.reviewNote, req.user.sub);
+  }
+
+  @Patch(':id/host')
+  assignHost(
+    @Param('id') id: string,
+    @Body() dto: AssignVillaHostDto,
+    @Req() req: Request & { user: { sub: string } },
+  ) {
+    return this.villas.assignHost(id, dto.hostId, req.user.sub);
   }
 
   @Post(':id/images')

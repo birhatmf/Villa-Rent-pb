@@ -151,3 +151,7 @@ export class ReviewVillaDto {
   @IsIn(['PUBLISHED', 'REJECTED']) status!: 'PUBLISHED' | 'REJECTED';
   @IsOptional() @IsString() @Length(0, 2000) reviewNote?: string;
 }
+
+export class AssignVillaHostDto {
+  @IsString() hostId!: string;
+}

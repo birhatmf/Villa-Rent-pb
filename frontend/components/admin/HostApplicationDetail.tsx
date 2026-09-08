@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   getHostApplication,
   hostApplicationDownloadUrl,
+  linkHostApplication,
   reviewHostApplication,
   type HostApplicationDetail as Detail,
 } from '@/lib/adminApi';
@@ -37,6 +38,9 @@ export default function HostApplicationDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [hostIdInput, setHostIdInput] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   const load = () =>
     getHostApplication(id)
@@ -62,6 +66,21 @@ export default function HostApplicationDetail({ id }: { id: string }) {
       setError(e instanceof Error ? e.message : 'İşlem başarısız.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function linkHost(userId?: string) {
+    setLinking(true);
+    setError(null);
+    try {
+      const result = await linkHostApplication(id, userId);
+      setApp(result.application);
+      if (result.tempPassword) setTempPassword(result.tempPassword);
+      setHostIdInput('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bağlanamadı.');
+    } finally {
+      setLinking(false);
     }
   }
 
@@ -174,6 +193,61 @@ export default function HostApplicationDetail({ id }: { id: string }) {
             </button>
           </div>
         </Section>
+
+        {app.status === 'APPROVED' && (
+          <Section title="Hesap Bağlama">
+            {app.linkedHost ? (
+              <p className="text-[0.9rem] text-ink">
+                Bağlı hesap: {app.linkedHost.name} ({app.linkedHost.email})
+              </p>
+            ) : (
+              <>
+                <p className="text-[0.85rem] leading-relaxed text-muted">
+                  Onaylı başvuru henüz bir hesaba bağlı değil. Mevcut bir üyeye bağlayın (kullanıcı id'sini{' '}
+                  <Link href="/admin/uyeler" className="underline underline-offset-4">Üyeler</Link> ekranından kopyalayın)
+                  veya başvurudaki bilgilerle yeni bir ev sahibi hesabı oluşturun.
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <input
+                    value={hostIdInput}
+                    onChange={(e) => setHostIdInput(e.target.value)}
+                    placeholder="Mevcut kullanıcı id"
+                    className="w-64 rounded-md border border-line bg-surface px-3 py-2 text-[0.88rem] text-ink outline-none focus:border-olive-soft"
+                  />
+                  <button
+                    onClick={() => linkHost(hostIdInput.trim())}
+                    disabled={linking || !hostIdInput.trim()}
+                    className="rounded-full border border-ink/25 px-5 py-2 text-[0.85rem] text-ink transition-colors hover:border-ink disabled:opacity-40"
+                  >
+                    Mevcut hesaba bağla
+                  </button>
+                  <button
+                    onClick={() => linkHost(undefined)}
+                    disabled={linking}
+                    className="rounded-full bg-ink px-5 py-2 text-[0.85rem] text-canvas transition-colors hover:bg-olive disabled:opacity-40"
+                  >
+                    {linking ? 'İşleniyor…' : 'Yeni ev sahibi hesabı oluştur'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {tempPassword && (
+              <div className="mt-5 rounded-lg border border-gold/30 bg-gold/10 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <p className="text-[0.85rem] leading-relaxed text-ink">
+                    Geçici şifre: <span className="font-mono">{tempPassword}</span>
+                    <br />
+                    Bu şifreyi telefonla ({app.phone}) ev sahibine iletin — tekrar gösterilmeyecek.
+                  </p>
+                  <button onClick={() => setTempPassword(null)} className="shrink-0 text-[0.8rem] text-muted hover:text-ink">
+                    Kapat
+                  </button>
+                </div>
+              </div>
+            )}
+          </Section>
+        )}
       </div>
     </div>
   );

@@ -129,6 +129,7 @@ const DETAIL_INCLUDE = {
   priceRules: { orderBy: { startDate: 'asc' as const } },
   blockedDates: { where: { state: 'ACTIVE' as const }, orderBy: { startDate: 'asc' as const } },
   concepts: { select: { id: true, name: true, slug: true } },
+  host: { select: { id: true, name: true, email: true } },
 };
 
 /** Public detay alanları allowlist'tir; yeni iç alanlar yanlışlıkla API'ye eklenmez. */
@@ -540,6 +541,7 @@ export class VillasService {
         cleaningFee: true,
         cleaningFeeThresholdNights: true,
         depositAmount: true,
+        commissionRate: true,
         // Konaklamanın tamamını kapsayan kurallar: `minimumNightsFor` yalnızca
         // giriş gününe bakar, `quoteStay` her geceye ayrı ayrı bakar.
         priceRules: {
@@ -607,7 +609,7 @@ export class VillasService {
         cleaningFeeAmount: quote.cleaningFeeAmount,
         depositAmount: quote.depositAmount,
         totalAmount: quote.totalAmount,
-        prepaymentAmount: prepaymentFor(quote.totalAmount, payment),
+        prepaymentAmount: prepaymentFor(quote.totalAmount, payment, villa.commissionRate),
       },
     };
   }
@@ -750,6 +752,9 @@ export class VillasService {
     return this.occupancy.withVillaLock(id, async (tx) => {
       await this.assertVillaScope(tx, id, hostId);
       const villa = await tx.villa.findUniqueOrThrow({ where: { id }, select: { status: true, _count: { select: { images: true } } } });
+      if (!['DRAFT', 'REJECTED'].includes(villa.status)) {
+        throw new ConflictException('Yalnızca taslak veya reddedilen villalar incelemeye gönderilebilir.');
+      }
       if (villa._count.images < 15) {
         throw new BadRequestException('Gönderebilmek için en az 15 fotoğraf yüklemelisiniz.');
       }
@@ -763,6 +768,35 @@ export class VillasService {
           action: 'VILLA_STATUS_CHANGED',
           before: { status: villa.status },
           after: { status: 'PENDING_REVIEW' },
+        },
+      });
+      return updated;
+    });
+  }
+
+  /**
+   * Admin, mevcut bir villayı bir ev sahibine atar/devreder. Bugüne kadar `hostId`
+   * yalnızca host kendi villasını oluştururken yazılıyordu — admin'in açtığı villa
+   * kalıcı olarak sahipsiz kalıyordu; bu, o boşluğu kapatan tek yazma yolu.
+   */
+  async assignHost(id: string, hostId: string, actorId: string) {
+    return this.occupancy.withVillaLock(id, async (tx) => {
+      const villa = await tx.villa.findUnique({ where: { id }, select: { hostId: true } });
+      if (!villa) throw new NotFoundException('Villa bulunamadı.');
+      const host = await tx.user.findUnique({ where: { id: hostId }, select: { role: true, active: true } });
+      if (!host || host.role !== 'HOST' || !host.active) {
+        throw new BadRequestException('Geçerli, aktif bir ev sahibi hesabı gerekli.');
+      }
+      const updated = await tx.villa.update({ where: { id }, data: { hostId }, include: DETAIL_INCLUDE });
+      await tx.calendarAudit.create({
+        data: {
+          villaId: id,
+          actorId,
+          entityType: 'VILLA',
+          entityId: id,
+          action: 'VILLA_HOST_ASSIGNED',
+          before: { hostId: villa.hostId },
+          after: { hostId },
         },
       });
       return updated;

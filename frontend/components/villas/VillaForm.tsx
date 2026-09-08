@@ -93,6 +93,8 @@ export default function VillaForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [hostIdInput, setHostIdInput] = useState('');
+  const [assigningHost, setAssigningHost] = useState(false);
 
   const load = useCallback(() => {
     if (!villaId) return;
@@ -501,8 +503,8 @@ export default function VillaForm({
 
             {scope === 'admin' && (
               <Field
-                label="Komisyon oranı (%)"
-                hint="Boş bırakılırsa genel varsayılan komisyon oranı uygulanır. Yalnızca yönetici görür ve değiştirir."
+                label="Kapora oranı (%)"
+                hint="Boş bırakılırsa Ödeme Ayarları'ndaki genel kapora oranı uygulanır. Kapora platformun tüm komisyonudur; kalan tutar doğrudan ev sahibine gider. Yalnızca yönetici görür ve değiştirir."
               >
                 <TextInput
                   type="number"
@@ -512,6 +514,44 @@ export default function VillaForm({
                   value={form.commissionRate ?? ''}
                   onChange={(e) => set('commissionRate', e.target.value === '' ? undefined : Number(e.target.value))}
                 />
+              </Field>
+            )}
+
+            {scope === 'admin' && !isCreate && (
+              <Field label="Sahip" hint="Villayı bir ev sahibi hesabına atar. Ev sahibi başvuruları ekranından ilgili kullanıcı id'sini kopyalayın.">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-[0.9rem] text-ink">
+                    {villa?.host ? `${villa.host.name} (${villa.host.email})` : 'Atanmamış'}
+                  </span>
+                  <div className="max-w-56">
+                    <TextInput
+                      placeholder="Kullanıcı id"
+                      value={hostIdInput}
+                      onChange={(e) => setHostIdInput(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!hostIdInput.trim() || assigningHost}
+                    onClick={async () => {
+                      setAssigningHost(true);
+                      setError(null);
+                      try {
+                        const updated = await api.assignHost(villaId!, hostIdInput.trim());
+                        setVilla(updated);
+                        setForm({ ...updated, conceptIds: updated.concepts.map((c) => c.id) });
+                        setHostIdInput('');
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Ata namadı.');
+                      } finally {
+                        setAssigningHost(false);
+                      }
+                    }}
+                    className="rounded-lg border border-dashed border-line px-4 py-2 text-[0.83rem] text-muted transition-colors hover:border-olive-soft hover:text-ink disabled:opacity-40"
+                  >
+                    {assigningHost ? 'Atanıyor…' : 'Ata'}
+                  </button>
+                </div>
               </Field>
             )}
 

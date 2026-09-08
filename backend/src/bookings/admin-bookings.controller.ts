@@ -87,10 +87,8 @@ export class HostBookingsController {
     return this.bookings.getAdmin(id, req.user.sub);
   }
 
-  @Post(':id/confirm')
-  confirm(@Param('id') id: string, @Body() dto: BookingVersionDto, @Req() req: AuthRequest) {
-    return this.bookings.confirm(id, dto.version, req.user.sub, req.user.sub);
-  }
+  // Onay ucu yok: kapora platformun parası, ev sahibi onu doğrulayamaz —
+  // onaylama yalnızca AdminBookingsController üzerinden yapılır.
 
   @Patch(':id')
   change(@Param('id') id: string, @Body() dto: ChangeBookingDto, @Req() req: AuthRequest) {

@@ -37,10 +37,11 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  villas    Villa[]
-  favorites Favorite[]
-  bookings  Booking[]       @relation("BookingGuest")
-  audits    CalendarAudit[] @relation("CalendarAuditActor")
+  villas             Villa[]
+  favorites          Favorite[]
+  bookings           Booking[]         @relation("BookingGuest")
+  audits             CalendarAudit[]   @relation("CalendarAuditActor")
+  linkedApplications HostApplication[]
 
   @@index([role, active])
   @@index([createdAt])
@@ -281,8 +282,11 @@ model Villa {
   checkInWeekday        Int?
 
   videoUrl       String?
-  /// Yüzde (örn. 20.0). Boşsa Setting['payments'].defaultCommissionRate kullanılır.
-  /// Yalnızca admin ayarlar — host-villas.controller.ts bu alanı DTO'dan düşürür.
+  /// Yüzde (örn. 20.0). Kapora oranı — Setting['payments'].depositRate'i bu villada
+  /// geçersiz kılar (bkz. bookings/payment.ts prepaymentFor). Kapora platformun tüm
+  /// komisyonudur; kalan tutar misafir ile ev sahibi arasında platform dışında kapanır.
+  /// Boşsa genel oran kullanılır. Yalnızca admin ayarlar — host-villas.controller.ts
+  /// bu alanı DTO'dan düşürür.
   commissionRate Float?
   reviewNote     String?
   reviewedAt     DateTime?
@@ -575,11 +579,17 @@ model HostApplication {
   reviewedAt DateTime?
   reviewedBy String?
 
+  // Onboarding bağlama: onaylı başvuru gerçek bir HOST hesabına bağlanır.
+  // Başvuru kalıcı kaynak kayıt olarak kalır — alanları başka yere kopyalanmaz.
+  linkedHostId String?
+  linkedHost   User?   @relation(fields: [linkedHostId], references: [id], onDelete: SetNull)
+
   documents HostApplicationDocument[]
   createdAt DateTime                  @default(now())
   updatedAt DateTime                  @updatedAt
 
   @@index([status, createdAt])
+  @@index([linkedHostId])
 }
 
 /// Diskteki gerçek dosya adı (storedName) rastgele üretilir; orijinal ad

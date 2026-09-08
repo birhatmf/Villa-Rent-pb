@@ -153,6 +153,8 @@ export type HostApplicationDetail = Omit<HostApplicationListItem, '_count'> & {
   reviewedAt: string | null;
   reviewedBy: string | null;
   documents: HostApplicationDocument[];
+  linkedHostId: string | null;
+  linkedHost: { id: string; name: string; email: string } | null;
 };
 
 export type HostApplicationListResult = {
@@ -185,6 +187,12 @@ export const reviewHostApplication = (
   req<HostApplicationDetail>(`/admin/host-applications/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
+  });
+
+export const linkHostApplication = (id: string, userId?: string) =>
+  req<{ application: HostApplicationDetail; tempPassword?: string }>(`/admin/host-applications/${id}/link-host`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
   });
 
 export const hostApplicationDownloadUrl = (appId: string, docId: string) =>

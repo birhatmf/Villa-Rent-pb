@@ -80,6 +80,15 @@ export class PagesService {
       };
     }
 
+    if (type === 'hero') {
+      // Arama çubuğundaki "Nereye" alanı için canlı bölge listesi.
+      const regions = await this.prisma.region.findMany({
+        orderBy: { order: 'asc' },
+        select: { id: true, slug: true, name: true },
+      });
+      return { ...content, search: { ...(content.search ?? {}), regions } };
+    }
+
     return content;
   }
 }

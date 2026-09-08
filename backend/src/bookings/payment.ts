@@ -50,13 +50,25 @@ export function readPaymentSettings(raw: Record<string, any> | null | undefined)
   };
 }
 
-/** Rezervasyonu bağlamak için şimdi istenecek tutar. Toplamı asla aşmaz. */
-export function prepaymentFor(totalAmount: number, settings: PaymentSettings): number {
+/**
+ * Rezervasyonu bağlamak için şimdi istenecek tutar. Toplamı asla aşmaz.
+ * Kapora = platformun tüm komisyonu; kalan tutar misafir ile ev sahibi arasında
+ * platform dışında kapanır. Öncelik: sabit tutar (>0) > villa bazlı oran > genel oran.
+ */
+export function prepaymentFor(totalAmount: number, settings: PaymentSettings, villaCommissionRate?: number | null): number {
+  const rate = villaCommissionRate != null ? Math.min(Math.max(villaCommissionRate, 0), 100) : settings.depositRate;
   const requested = settings.depositFixedAmount > 0
     ? settings.depositFixedAmount
-    : Math.round((totalAmount * settings.depositRate) / 100);
+    : Math.round((totalAmount * rate) / 100);
   return Math.min(Math.max(requested, 0), Math.max(totalAmount, 0));
 }
 
 /** Havale açıklamasına yazılacak, misafire gösterilen kısa referans. */
 export const paymentReference = (bookingId: string) => `MV-${bookingId.slice(-6).toUpperCase()}`;
+
+/**
+ * Misafir iletişim bilgisi (ad/e‑posta/telefon) host'a ancak rezervasyon
+ * CONFIRMED olunca açılır — kapora ödenmeden host misafire platform dışından
+ * ulaşıp komisyonu atlayamasın diye. Admin (hostId yok) her zaman görür.
+ */
+export const revealGuestContact = (hostId: string | undefined, status: string) => !hostId || status === 'CONFIRMED';

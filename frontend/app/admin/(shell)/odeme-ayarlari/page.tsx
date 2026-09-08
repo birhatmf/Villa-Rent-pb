@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { getSetting, saveSetting } from '@/lib/adminApi';
 
 type PaymentSettings = {
-  defaultCommissionRate: number;
   accountHolder: string;
   iban: string;
   bankName: string;
@@ -15,7 +14,6 @@ type PaymentSettings = {
 };
 
 const DEFAULTS: PaymentSettings = {
-  defaultCommissionRate: 20,
   accountHolder: '',
   iban: '',
   bankName: '',
@@ -39,7 +37,6 @@ export default function PaymentSettingsPage() {
     getSetting('payments')
       .then((value) =>
         setForm({
-          defaultCommissionRate: num(value.defaultCommissionRate, DEFAULTS.defaultCommissionRate),
           accountHolder: text(value.accountHolder),
           iban: text(value.iban),
           bankName: text(value.bankName),
@@ -84,7 +81,9 @@ export default function PaymentSettingsPage() {
         <h1 className="mt-3 font-display text-3xl font-light tracking-[-0.02em] text-ink">Ödeme ayarları</h1>
         <p className="mt-4 text-[0.9rem] leading-relaxed text-muted">
           Sitede POS yok: misafir kaporayı buradaki hesaba havale eder, rezervasyonu onayladığınızda ödeme alınmış
-          sayılır. Bu bilgiler halka açık uçtan yayınlanmaz; yalnızca kendi rezervasyonunu görüntüleyen misafire gösterilir.
+          sayılır. Kapora platformun tüm komisyonudur; kalan tutar misafir ile ev sahibi arasında girişte doğrudan
+          kapanır, platform dokunmaz. Bu bilgiler halka açık uçtan yayınlanmaz; yalnızca kendi rezervasyonunu
+          görüntüleyen misafire gösterilir.
         </p>
 
         <h2 className="mt-12 border-b border-line pb-3 font-display text-xl font-light text-ink">Havale hesabı</h2>
@@ -97,12 +96,12 @@ export default function PaymentSettingsPage() {
         <h2 className="mt-12 border-b border-line pb-3 font-display text-xl font-light text-ink">Kapora</h2>
         <div className="mt-6 space-y-7">
           <Number
-            label="Kapora oranı (%)"
+            label="Genel kapora oranı (%)"
             value={form.depositRate}
             min={0}
             max={100}
             step={1}
-            hint="Toplam tutarın yüzdesi. Aşağıdaki sabit tutar 0'dan büyükse bu oran kullanılmaz."
+            hint="Toplam tutarın yüzdesi — platformun komisyonu. Villa düzenleme ekranındaki 'Kapora oranı' bu villada bu değeri geçersiz kılar. Aşağıdaki sabit tutar 0'dan büyükse ikisi de kullanılmaz."
             onChange={(v) => set('depositRate', v)}
           />
           <Number
@@ -131,19 +130,6 @@ export default function PaymentSettingsPage() {
               className="mt-1.5 w-full border-b border-ink/25 bg-transparent pb-2 text-[0.98rem] text-ink outline-none focus:border-ink"
             />
           </label>
-        </div>
-
-        <h2 className="mt-12 border-b border-line pb-3 font-display text-xl font-light text-ink">Komisyon</h2>
-        <div className="mt-6">
-          <Number
-            label="Genel varsayılan komisyon oranı (%)"
-            value={form.defaultCommissionRate}
-            min={0}
-            max={100}
-            step={0.5}
-            hint="Villa bazlı oran boş bırakıldığında bu kullanılır."
-            onChange={(v) => set('defaultCommissionRate', v)}
-          />
         </div>
 
         {error && <p className="mt-8 text-[0.88rem] text-red-700">{error}</p>}

@@ -15,6 +15,7 @@ Son güncelleme: **8 Eylül 2026**
 | 5 — Kapora ve ödeme | Havale akışı tamamlandı | Uçtan uca rezervasyon adımları, admin tanımlı IBAN'a kapora havalesi, filtrelenebilir rezervasyon listesi ve ayrı detay/onay ekranı. POS/webhook ihtiyaç kesinleştiğinde eklenecek |
 | C1 — Customer hesabı | Temel teslim tamamlandı | Ayrı seyahat/owner rotaları, sayfalı seyahat filtreleri, profil ve parola değişikliği, eski oturum iptali, aktif hesap kontrolü |
 | C2–C4 — Customer satış sonrası | Planlandı | Talep/değişiklik/iptal, bildirim ve doğrulanmış konaklama yorumları |
+| O1 — Ev sahibi paneli ve onboarding | Temel teslim tamamlandı | Kapora = platform komisyonu (villa bazlı oran override'ı), onay yalnızca admin'de, ev sahibi için net kazanç görünürlüğü, başvuru → gerçek hesap/villa bağlama, iki gizlilik tutarsızlığının düzeltilmesi |
 
 Ana dalın Aşama 4 referansı: `df16d6d`.
 
@@ -23,6 +24,8 @@ Aşama 4 için kalan kabul adımı, gerçek bir Airbnb veya Booking hesabına ai
 Ayrıntılı ürün ve teknik kararlar için [uygulama planına](docs/plans/villa-musaitlik-rezervasyon-ical.md) bakın.
 
 Customer hesap, seyahat ve yorum incelemesi için [customer deneyimi planına](docs/plans/customer-hesap-rezervasyon-yorum.md) bakın.
+
+Ev sahibi paneli, komisyon modeli ve onboarding zinciri için [ev sahibi paneli planına](docs/plans/ev-sahibi-paneli.md) bakın.
 
 ## Teknoloji
 

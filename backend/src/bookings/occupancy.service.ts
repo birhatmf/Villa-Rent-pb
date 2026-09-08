@@ -20,6 +20,7 @@ const VILLA_SELECT = {
   cleaningFee: true,
   cleaningFeeThresholdNights: true,
   depositAmount: true,
+  commissionRate: true,
   priceRules: {
     orderBy: { startDate: 'asc' as const },
     select: { startDate: true, endDate: true, pricePerNight: true, minNights: true },

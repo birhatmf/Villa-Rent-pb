@@ -141,6 +141,7 @@ export type VillaDetail = Omit<VillaFormInput, 'conceptIds'> & {
   bookingMode: 'INSTANT' | 'REQUEST';
   timezone: string;
   hostId: string | null;
+  host: { id: string; name: string; email: string } | null;
   capacity: number;
   reviewNote: string | null;
   reviewedAt: string | null;
@@ -243,6 +244,9 @@ export function createVillaApi(scope: 'admin' | 'host') {
         method: 'PATCH',
         body: JSON.stringify({ status, reviewNote }),
       }),
+
+    assignHost: (id: string, hostId: string) =>
+      req<VillaDetail>(`/admin/villas/${id}/host`, { method: 'PATCH', body: JSON.stringify({ hostId }) }),
 
     async uploadImage(villaId: string, category: string, file: File, dims?: { width?: number; height?: number }) {
       const form = new FormData();

@@ -48,6 +48,14 @@ geçersiz kılan hesap sürümünü ve profil güncelleme zamanını ekler:
 npx prisma db execute --file prisma/sql/20260908_customer_account.sql --schema prisma/schema.prisma
 ```
 
+`20260908_host_onboarding_link.sql`, onaylı bir ev sahibi başvurusunun gerçek bir
+HOST hesabına bağlanabilmesi için `HostApplication.linkedHostId` alanını ekler.
+Başvuru kalıcı kaynak kayıt olarak kalır; hiçbir alan başka tabloya kopyalanmaz:
+
+```sh
+npx prisma db execute --file prisma/sql/20260908_host_onboarding_link.sql --schema prisma/schema.prisma
+```
+
 iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 16 karakterlik, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Tanımlı değilse mevcut `JWT_SECRET` kullanılır; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
 
 Kalıcı Prisma Migrate geçmişine geçerken önce mevcut şema için baseline oluşturulup bu migration uygulanmış olarak işaretlenmelidir. Canlı veritabanı resetlenmez ve veri silen seed komutu kullanılmaz.

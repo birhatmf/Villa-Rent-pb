@@ -12,7 +12,7 @@ import { SettingsService } from '../settings/settings.service';
 import { formatCalendarDate, parseCalendarDate, parseStayDates } from '../villas/availability';
 import type { AdminCreateBookingDto, ChangeBookingDto, CreateHoldDto, OwnBookingListDto } from './dto';
 import { OccupancyService } from './occupancy.service';
-import { paymentReference, prepaymentFor, readPaymentSettings } from './payment';
+import { paymentReference, prepaymentFor, readPaymentSettings, revealGuestContact } from './payment';
 
 const HOLD_MINUTES = 10;
 const MAX_ACTIVE_HOLDS = 5;
@@ -115,7 +115,7 @@ export class BookingsService {
             ...quote,
             priceSnapshot: quote.priceSnapshot as Prisma.InputJsonValue,
             paymentStatus: 'PENDING',
-            prepaymentAmount: prepaymentFor(quote.totalAmount, payment),
+            prepaymentAmount: prepaymentFor(quote.totalAmount, payment, villa.commissionRate),
             holdExpiresAt: new Date(now.getTime() + HOLD_MINUTES * 60_000),
             idempotencyOwner: owner,
             idempotencyKey: key,
@@ -199,6 +199,8 @@ export class BookingsService {
   }
 
   async confirm(id: string, expectedVersion: number, actorId: string, hostId?: string) {
+    // Kapora platformun parası — ev sahibi onu görmez/doğrulayamaz, onayı yalnızca admin verir.
+    if (hostId) throw new ForbiddenException('Kapora onayı yalnızca yönetici tarafından yapılabilir.');
     const target = await this.bookingTarget(id, hostId);
     return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
       const booking = await tx.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
@@ -258,7 +260,7 @@ export class BookingsService {
       const prepaymentAmount =
         booking.paymentStatus === 'NONE'
           ? booking.prepaymentAmount
-          : prepaymentFor(quote.totalAmount, payment);
+          : prepaymentFor(quote.totalAmount, payment, villa.commissionRate);
       const updated = await tx.booking.update({
         where: { id },
         data: {
@@ -308,6 +310,11 @@ export class BookingsService {
       if (booking.status === 'CANCELLED') return this.response(booking, hostId);
       this.assertVersion(booking.version, expectedVersion);
       if (booking.status === 'EXPIRED') throw new ConflictException('Süresi dolmuş rezervasyon iptal edilemez.');
+      // Onaylanmış rezervasyonda kapora zaten platforma yatmıştır; iade kararı
+      // ev sahibinin değil, yönetimin. Bkz. BookingsService.confirm().
+      if (hostId && booking.status === 'CONFIRMED') {
+        throw new ForbiddenException('Onaylanmış bir rezervasyonu ev sahibi doğrudan iptal edemez. Yönetimle iletişime geçin.');
+      }
       const updated = await tx.booking.update({
         where: { id },
         data: {
@@ -470,7 +477,7 @@ export class BookingsService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    const safeAudits = hostId && booking.status !== 'CONFIRMED'
+    const safeAudits = !revealGuestContact(hostId, booking.status)
       ? audits.map((audit) => ({
           ...audit,
           actor: audit.actor?.role === 'GUEST' ? { ...audit.actor, name: 'Misafir' } : audit.actor,
@@ -658,7 +665,7 @@ export class BookingsService {
     const { requestHash: _requestHash, ...safeBooking } = booking as BookingRecord & {
       requestHash?: string;
     };
-    const revealContact = !hostId || booking.status === 'CONFIRMED';
+    const revealContact = revealGuestContact(hostId, booking.status);
     return {
       ...safeBooking,
       checkIn: formatCalendarDate(booking.checkIn),

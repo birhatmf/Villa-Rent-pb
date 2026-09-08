@@ -114,12 +114,16 @@ export type BookingListParams = {
 };
 export type BookingListResult = { items: Booking[]; total: number; page: number; pageSize: number };
 
-/** Ayrı bir rezervasyon listesi/detay sayfası hem admin hem host tarafında bu ortak şekli kullanır. */
+/**
+ * Ayrı bir rezervasyon listesi/detay sayfası hem admin hem host tarafında bu ortak
+ * şekli kullanır. `confirm` host için yok: kapora platformun parası, host onu
+ * doğrulayamaz — onay yalnızca admin ucundan yapılır (bkz. bookings.service.ts).
+ */
 export type BookingApiClient = {
   list: (params?: BookingListParams) => Promise<BookingListResult>;
   get: (id: string) => Promise<BookingDetail>;
   change: (id: string, data: { from: string; to: string; adults: number; children: number; infants: number; version: number }) => Promise<Booking>;
-  confirm: (id: string, version: number) => Promise<Booking>;
+  confirm?: (id: string, version: number) => Promise<Booking>;
   cancel: (id: string, version: number, note: string) => Promise<Booking>;
 };
 
@@ -128,8 +132,6 @@ export const hostBookingApi: BookingApiClient = {
   list: (params = {}) => req<BookingListResult>(`/host/bookings?${query({ pageSize: 20, ...params })}`),
   get: (id: string) => req<BookingDetail>(`/host/bookings/${id}`),
   change: (id: string, data) => req<Booking>(`/host/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  confirm: (id: string, version: number) =>
-    req<Booking>(`/host/bookings/${id}/confirm`, { method: 'POST', body: JSON.stringify({ version }) }),
   cancel: (id: string, version: number, note: string) =>
     req<Booking>(`/host/bookings/${id}/cancel`, { method: 'POST', body: JSON.stringify({ version, note }) }),
 };

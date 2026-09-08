@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import DateRangeField from './DateRangeField';
 import GuestsField from './GuestsField';
+import RegionField from './RegionField';
 
 type Slide = { image: string; caption?: string };
 
@@ -84,19 +85,21 @@ export default function Hero({ content }: { content: Record<string, any> }) {
   );
 }
 
-function SearchBar({ search }: { search?: { placeholder?: string; cta?: string } }) {
+function SearchBar({
+  search,
+}: {
+  search?: { cta?: string; regions?: { id: string; slug: string; name: string }[] };
+}) {
+  const regions = search?.regions ?? [];
   return (
     <form
       action="/villalar"
       className="mt-12 grid gap-px overflow-visible rounded-2xl bg-line/60 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)] sm:grid-cols-2 lg:grid-cols-[1.4fr_1.6fr_0.9fr_auto]"
     >
-      <Field label="Nereye" className="rounded-t-2xl sm:rounded-tl-2xl sm:rounded-tr-none lg:rounded-l-2xl lg:rounded-r-none">
-        <input
-          name="q"
-          placeholder={search?.placeholder ?? 'Bölge veya villa adı'}
-          className="w-full bg-transparent text-[0.95rem] text-ink outline-none placeholder:text-muted/70"
-        />
-      </Field>
+      <RegionField
+        regions={regions}
+        className="rounded-t-2xl sm:rounded-tl-2xl sm:rounded-tr-none lg:rounded-l-2xl lg:rounded-r-none"
+      />
       <DateRangeField />
       <GuestsField className="sm:col-span-2 lg:col-span-1" />
       <button
@@ -106,22 +109,5 @@ function SearchBar({ search }: { search?: { placeholder?: string; cta?: string }
         {search?.cta ?? 'Villa ara'}
       </button>
     </form>
-  );
-}
-
-function Field({
-  label,
-  children,
-  className = '',
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`flex flex-col gap-1.5 bg-surface px-6 py-4 transition-colors focus-within:bg-sand/50 ${className}`}>
-      <span className="eyebrow text-muted">{label}</span>
-      {children}
-    </label>
   );
 }

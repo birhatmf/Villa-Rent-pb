@@ -186,14 +186,16 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-24 xl:h-fit">
-            <ApprovalCard booking={booking} busy={busy} onConfirm={() => {
+            <ApprovalCard booking={booking} busy={busy} scope={scope} onConfirm={() => {
+              const confirm = api.confirm;
+              if (!confirm) return;
               const warning = booking.paymentStatus === 'PENDING'
                 ? 'Misafir henüz havale bildirimi yapmadı. Ödemeyi başka şekilde doğruladıysanız devam edin. Rezervasyon onaylansın mı?'
                 : 'Havale tutarını banka hesabından doğruladınız mı? Rezervasyon kesinleştirilecek.';
-              if (window.confirm(warning)) void run(() => api.confirm(booking.id, booking.version), 'Rezervasyon onaylandı.');
+              if (window.confirm(warning)) void run(() => confirm(booking.id, booking.version), 'Rezervasyon onaylandı.');
             }} />
 
-            {editable && (
+            {(scope === 'admin' ? editable : booking.status === 'HOLD') && (
               <section className="rounded-2xl border border-red-200 bg-surface p-5">
                 <p className="eyebrow text-red-700">İptal</p>
                 <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">İptal tarihleri serbest bırakır ve gerekçeyi işlem geçmişine kaydeder.</p>
@@ -201,6 +203,13 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
                 <button disabled={busy || cancelNote.trim().length < 2} onClick={() => {
                   if (window.confirm('Rezervasyon iptal edilsin ve tarihler serbest bırakılsın mı?')) void run(() => api.cancel(booking.id, booking.version, cancelNote), 'Rezervasyon iptal edildi.');
                 }} className="mt-3 w-full rounded-full border border-red-300 px-4 py-2.5 text-[0.8rem] text-red-700 hover:bg-red-50 disabled:opacity-40">Rezervasyonu iptal et</button>
+              </section>
+            )}
+
+            {scope === 'host' && booking.status === 'CONFIRMED' && (
+              <section className="rounded-2xl border border-line bg-surface p-5">
+                <p className="eyebrow text-muted">İptal</p>
+                <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">Onaylanmış bir rezervasyonu iptal etmek için yönetimle iletişime geçin.</p>
               </section>
             )}
 
@@ -217,11 +226,33 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
   );
 }
 
-function ApprovalCard({ booking, busy, onConfirm }: { booking: Booking; busy: boolean; onConfirm: () => void }) {
+function ApprovalCard({ booking, busy, scope, onConfirm }: { booking: Booking; busy: boolean; scope: 'admin' | 'host'; onConfirm: () => void }) {
   if (booking.status !== 'HOLD') {
+    // Kapora platformun parası: onaylanmış bir rezervasyonda host'un görmesi gereken
+    // "onay durumu" değil, kendi net kazancıdır — bkz. bookings.service.ts confirm().
+    if (scope === 'host' && booking.status === 'CONFIRMED') {
+      const net = booking.totalAmount - booking.prepaymentAmount;
+      return (
+        <section className="rounded-2xl border border-olive/25 bg-olive/[0.06] p-5">
+          <p className="eyebrow text-muted">Net kazancınız</p>
+          <p className="mt-3 font-display text-2xl font-light text-ink">{formatPrice(net, booking.currency)}</p>
+          <p className="mt-2 text-[0.8rem] leading-relaxed text-muted">Bu tutar rezervasyon süresince misafirden doğrudan tahsil edilir; platform bu tutara dokunmaz.</p>
+        </section>
+      );
+    }
     return <section className={`rounded-2xl border p-5 ${booking.status === 'CONFIRMED' ? 'border-olive/25 bg-olive/[0.06]' : 'border-line bg-surface'}`}><p className="eyebrow text-muted">Onay durumu</p><p className="mt-3 font-display text-xl font-light text-ink">{STATUS_LABEL[booking.status]}</p>{booking.status === 'CONFIRMED' && <p className="mt-2 text-[0.8rem] text-muted">Stok kesinleşti ve tarihler satışa kapatıldı.</p>}</section>;
   }
   const declared = booking.paymentStatus === 'DECLARED';
+  // Kapora platformun parası — host onu doğrulayamaz, onay yalnızca admin ucundan yapılır.
+  if (scope === 'host') {
+    return (
+      <section className={`rounded-2xl border p-5 ${declared ? 'border-gold/40 bg-gold/[0.08]' : 'border-line bg-surface'}`}>
+        <p className={`eyebrow ${declared ? 'text-gold' : 'text-muted'}`}>Onay mekanizması</p>
+        <h2 className="mt-3 font-display text-xl font-light text-ink">{declared ? 'Havale bildirildi' : 'Kapora bekleniyor'}</h2>
+        <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">Kapora yönetim tarafından onaylanır.{declared ? ' Misafir havale bildirdi, yönetim onayı bekleniyor.' : ' Misafir henüz havale yaptığını bildirmedi.'}</p>
+      </section>
+    );
+  }
   return (
     <section className={`rounded-2xl border p-5 ${declared ? 'border-gold/40 bg-gold/[0.08]' : 'border-line bg-surface'}`}>
       <p className={`eyebrow ${declared ? 'text-gold' : 'text-muted'}`}>Onay mekanizması</p>

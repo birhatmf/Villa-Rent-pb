@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { revealGuestContact } from './payment';
 import { formatCalendarDate, parseStayDates } from '../villas/availability';
 
 type CalendarQuery = {
@@ -88,16 +89,18 @@ export class CalendarService {
       to: input.to,
       villas,
       events: [
-        ...bookings.map((booking) => ({
+        ...bookings.map((booking) => {
+          const reveal = revealGuestContact(hostId, booking.status);
+          return {
           id: booking.id,
           villaId: booking.villaId,
           source: 'BOOKING' as const,
           kind: booking.status,
           startDate: formatCalendarDate(booking.checkIn),
           endDate: formatCalendarDate(booking.checkOut),
-          title: hostId ? 'Rezervasyon' : booking.customerName ?? booking.guest?.name ?? 'Rezervasyon',
-          email: hostId ? null : booking.customerEmail ?? booking.guest?.email ?? null,
-          phone: hostId ? null : booking.customerPhone ?? booking.guest?.phone ?? null,
+          title: reveal ? booking.customerName ?? booking.guest?.name ?? 'Rezervasyon' : 'Rezervasyon',
+          email: reveal ? booking.customerEmail ?? booking.guest?.email ?? null : null,
+          phone: reveal ? booking.customerPhone ?? booking.guest?.phone ?? null : null,
           adults: booking.adults,
           children: booking.children,
           infants: booking.infants,
@@ -107,7 +110,8 @@ export class CalendarService {
           paymentStatus: booking.paymentStatus,
           prepaymentAmount: booking.prepaymentAmount,
           version: booking.version,
-        })),
+          };
+        }),
         ...blocks.map((block) => ({
           id: block.id,
           villaId: block.villaId,
@@ -128,7 +132,7 @@ export class CalendarService {
   }
 
   async audit(villaId: string | undefined, limit = 50, hostId?: string) {
-    return this.prisma.calendarAudit.findMany({
+    const audits = await this.prisma.calendarAudit.findMany({
       where: {
         ...(villaId ? { villaId } : {}),
         ...(hostId ? { villa: { hostId } } : {}),
@@ -148,6 +152,22 @@ export class CalendarService {
       },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(limit, 1), 100),
+    });
+    if (!hostId) return audits;
+
+    // BookingsService.getAdmin ile aynı kural: onaylanmamış rezervasyonda misafirin
+    // gerçek adı host'a audit üzerinden de sızmasın (bkz. revealGuestContact).
+    const bookingIds = [...new Set(audits.filter((a) => a.entityType === 'BOOKING').map((a) => a.entityId))];
+    const confirmedIds = bookingIds.length
+      ? new Set(
+          (await this.prisma.booking.findMany({ where: { id: { in: bookingIds }, status: 'CONFIRMED' }, select: { id: true } })).map(
+            (b) => b.id,
+          ),
+        )
+      : new Set<string>();
+    return audits.map((audit) => {
+      if (audit.entityType !== 'BOOKING' || confirmedIds.has(audit.entityId) || audit.actor?.role !== 'GUEST') return audit;
+      return { ...audit, actor: { ...audit.actor, name: 'Misafir' } };
     });
   }
 
