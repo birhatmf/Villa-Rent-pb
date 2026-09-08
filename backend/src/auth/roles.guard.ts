@@ -32,17 +32,20 @@ export class RolesGuard implements CanActivate {
       ctx.getClass(),
     ]);
 
-    const req = ctx.switchToHttp().getRequest<{ user?: { sub?: string; role?: Role } }>();
+    const req = ctx.switchToHttp().getRequest<{ user?: { sub?: string; role?: Role; sv?: number } }>();
     const userId = req.user?.sub;
     if (!userId) throw new UnauthorizedException('Oturum bulunamadı.');
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, active: true },
+      select: { id: true, role: true, active: true, sessionVersion: true },
     });
 
     if (!user) throw new UnauthorizedException('Hesap bulunamadı.');
-    if (!user.active) throw new ForbiddenException('Hesabınız devre dışı bırakılmış.');
+    if (!user.active) throw new UnauthorizedException('Hesabınız devre dışı bırakılmış.');
+    if (req.user?.sv !== user.sessionVersion) {
+      throw new UnauthorizedException('Oturum artık geçerli değil.');
+    }
     if (required?.length && !required.includes(user.role)) {
       throw new ForbiddenException('Bu işlem için yetkiniz yok.');
     }

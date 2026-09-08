@@ -4,7 +4,7 @@ My Villa; villa listeleme, tarih bazlı müsaitlik, güvenli rezervasyon, admin/
 
 ## Kaldığımız durum
 
-Son güncelleme: **7 Eylül 2026**
+Son güncelleme: **8 Eylül 2026**
 
 | Aşama | Durum | Teslim |
 | --- | --- | --- |
@@ -13,7 +13,8 @@ Son güncelleme: **7 Eylül 2026**
 | 3 — Takvim yönetimi | Tamamlandı | Admin/ev sahibi takvimi, blok nedenleri, sürüm kontrolü ve işlem geçmişi |
 | 4 — iCal | Teknik teslim tamamlandı | Güvenli import/export, senkronizasyon işçisi, kaynak sağlığı ve çakışma görünürlüğü |
 | 5 — Kapora ve ödeme | Havale akışı tamamlandı | Uçtan uca rezervasyon adımları, admin tanımlı IBAN'a kapora havalesi, filtrelenebilir rezervasyon listesi ve ayrı detay/onay ekranı. POS/webhook ihtiyaç kesinleştiğinde eklenecek |
-| C1–C4 — Customer deneyimi | Planlandı | Hesap güvenliği, seyahat merkezi, talep/değişiklik/iptal, bildirim ve doğrulanmış konaklama yorumları |
+| C1 — Customer hesabı | Temel teslim tamamlandı | Ayrı seyahat/owner rotaları, sayfalı seyahat filtreleri, profil ve parola değişikliği, eski oturum iptali, aktif hesap kontrolü |
+| C2–C4 — Customer satış sonrası | Planlandı | Talep/değişiklik/iptal, bildirim ve doğrulanmış konaklama yorumları |
 
 Ana dalın Aşama 4 referansı: `df16d6d`.
 
@@ -69,6 +70,7 @@ npx prisma db execute --file prisma/sql/20260906_booking_core.sql --schema prism
 npx prisma db execute --file prisma/sql/20260906_calendar_management.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260907_ical_sync.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260907_booking_payment.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_customer_account.sql --schema prisma/schema.prisma
 npm run db:seed
 npm run dev
 ```
@@ -110,6 +112,7 @@ cd backend
 npm run build
 npm run test:availability
 npm run test:payment
+npm run test:customer-access
 npm run test:ical-parser
 npm run test:ical-security
 npx prisma validate
@@ -127,6 +130,13 @@ ALLOW_ICAL_TEST=1 DATABASE_URL=postgresql://... ICAL_ENCRYPTION_KEY=test-icin-uz
 ```
 
 Testlerde kullanılan `DATABASE_URL` gerçek veya paylaşılan geliştirme veritabanını göstermemelidir.
+
+## Customer, owner ve admin erişimi
+
+- Her rol customer olarak rezervasyon yapabilir; kendi kayıtları yalnızca `guestId` üzerinden `/hesabim/seyahatlerim` altında görünür.
+- Owner araçları `/hesabim/ev-sahibi/*` altındadır ve backend her isteği villanın `hostId` alanıyla sınırlar. Admin genel operasyon için ayrı `/admin/*` uçlarını kullanır.
+- Rol değiştirme ve hesap pasifleştirme eski oturumları anında geçersiz kılar. Son aktif admin kaldırılamaz; bağlı villası olan owner misafir rolüne düşürülemez; rezervasyon veya villa geçmişi olan hesap fiziksel silinemez.
+- Profil ve parola `/hesabim/profil` sayfasından değişir. Parola değişikliği diğer cihazlardaki oturumları kapatır.
 
 ## Rezervasyon ve iCal davranışı
 

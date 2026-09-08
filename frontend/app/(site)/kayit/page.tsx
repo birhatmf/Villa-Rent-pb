@@ -8,7 +8,7 @@ import { register } from '@/lib/authApi';
 
 export default function KayitPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', passwordConfirm: '' });
   const [kvkk, setKvkk] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,10 +19,21 @@ export default function KayitPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    if (form.password !== form.passwordConfirm) {
+      setError('Şifreler birbiriyle eşleşmiyor.');
+      return;
+    }
+    setBusy(true);
     try {
-      await register({ ...form, kvkkAccepted: kvkk, marketingOptIn: marketing });
+      await register({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        kvkkAccepted: kvkk,
+        marketingOptIn: marketing,
+      });
       router.replace('/hesabim');
       router.refresh();
     } catch (err) {
@@ -90,12 +101,27 @@ export default function KayitPage() {
               type="password"
               required
               minLength={8}
+              maxLength={72}
               autoComplete="new-password"
               value={form.password}
               onChange={set('password')}
               className={fieldCls}
             />
             <span className="mt-1.5 block text-[0.78rem] text-muted/80">En az 8 karakter.</span>
+          </label>
+
+          <label className="block">
+            <span className="eyebrow text-muted">Şifre tekrar</span>
+            <input
+              type="password"
+              required
+              minLength={8}
+              maxLength={72}
+              autoComplete="new-password"
+              value={form.passwordConfirm}
+              onChange={set('passwordConfirm')}
+              className={fieldCls}
+            />
           </label>
         </div>
 

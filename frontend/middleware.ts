@@ -29,9 +29,9 @@ export function middleware(req: NextRequest) {
       url.searchParams.set('next', pathname + search);
       return NextResponse.redirect(url);
     }
-    // "Villalarım" ve "Rezervasyonlarım" yalnızca HOST/ADMIN — misafir üye önce ev sahibi başvurusu yapmalı.
+    // Ev sahibi araçları yalnızca HOST/ADMIN — seyahatler her girişli role açıktır.
     if (
-      (pathname.startsWith('/hesabim/villalarim') || pathname.startsWith('/hesabim/rezervasyonlarim')) &&
+      (pathname.startsWith('/hesabim/villalarim') || pathname.startsWith('/hesabim/ev-sahibi')) &&
       session &&
       session.role === 'GUEST'
     ) {

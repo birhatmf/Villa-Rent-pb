@@ -28,7 +28,7 @@ const AUDIT_LABEL: Record<string, string> = {
 
 export default function ReservationDetail({ id, scope = 'admin' }: { id: string; scope?: 'admin' | 'host' }) {
   const api = scope === 'admin' ? bookingApi : hostBookingApi;
-  const backHref = scope === 'admin' ? '/admin/rezervasyonlar' : '/hesabim/rezervasyonlarim';
+  const backHref = scope === 'admin' ? '/admin/rezervasyonlar' : '/hesabim/ev-sahibi/rezervasyonlar';
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState({ from: '', to: '', adults: 2, children: 0, infants: 0 });

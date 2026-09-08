@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 /** Header/Footer'sız araç kabuğu — admin panelindeki gibi tam ekran, host'un
- * "Villalarım" ve "Rezervasyonlarım" alanları için. app/admin/layout.tsx ile aynı fikir. */
+ * "Villalarım" ve gelen rezervasyon alanları için. app/admin/layout.tsx ile aynı fikir. */
 const TABS = [
   { href: '/hesabim/villalarim', label: 'Villalarım' },
-  { href: '/hesabim/rezervasyonlarim', label: 'Rezervasyonlarım' },
+  { href: '/hesabim/ev-sahibi/rezervasyonlar', label: 'Gelen rezervasyonlar' },
 ];
 
 export default function ToolsLayout({ children }: { children: React.ReactNode }) {

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { login } from '@/lib/authApi';
+import { safeInternalPath } from '@/lib/navigation';
 
 export default function LoginPage() {
   return (
@@ -27,7 +28,7 @@ function LoginForm() {
     setError(null);
     try {
       await login(email, password);
-      router.replace(params.get('next') || '/admin');
+      router.replace(safeInternalPath(params.get('next'), '/admin'));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Giriş yapılamadı.');
@@ -65,6 +66,7 @@ function LoginForm() {
               <input
                 type="password"
                 required
+                maxLength={72}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-2 w-full border-b border-ink/25 bg-transparent pb-2 text-[0.98rem] text-ink outline-none transition-colors focus:border-ink"

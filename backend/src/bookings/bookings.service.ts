@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { formatCalendarDate, parseCalendarDate, parseStayDates } from '../villas/availability';
-import type { AdminCreateBookingDto, ChangeBookingDto, CreateHoldDto } from './dto';
+import type { AdminCreateBookingDto, ChangeBookingDto, CreateHoldDto, OwnBookingListDto } from './dto';
 import { OccupancyService } from './occupancy.service';
 import { paymentReference, prepaymentFor, readPaymentSettings } from './payment';
 
@@ -406,14 +406,44 @@ export class BookingsService {
     return this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments')));
   }
 
-  async listOwn(userId: string) {
-    const items = await this.prisma.booking.findMany({
-      where: { guestId: userId },
-      select: BOOKING_SELECT,
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    return { items: items.map((item) => this.response(item)) };
+  async listOwn(userId: string, input: OwnBookingListDto) {
+    const page = Math.max(input.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(input.pageSize ?? 12, 1), 50);
+    const scope = input.scope ?? 'all';
+    const today = parseCalendarDate(this.todayInIstanbul());
+    const scopedWhere: Prisma.BookingWhereInput =
+      scope === 'action-required'
+        ? { status: 'HOLD', paymentStatus: 'PENDING', holdExpiresAt: { gt: new Date() } }
+        : scope === 'upcoming'
+          ? { status: 'CONFIRMED', checkOut: { gt: today } }
+          : scope === 'past'
+            ? { status: 'CONFIRMED', checkOut: { lte: today } }
+            : scope === 'cancelled'
+              ? { status: { in: ['CANCELLED', 'EXPIRED'] } }
+              : {};
+    const where: Prisma.BookingWhereInput = { guestId: userId, ...scopedWhere };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.booking.findMany({
+        where,
+        select: BOOKING_SELECT,
+        orderBy: scope === 'upcoming' ? { checkIn: 'asc' } : { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.booking.count({ where }),
+    ]);
+    return { items: items.map((item) => this.response(item)), total, page, pageSize };
+  }
+
+  private todayInIstanbul() {
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
   }
 
   async getAdmin(id: string, hostId?: string) {

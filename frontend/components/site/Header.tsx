@@ -156,6 +156,29 @@ export default function Header() {
               >
                 Hesabım
               </Link>
+              <Link
+                href="/hesabim/seyahatlerim"
+                onClick={() => setOpen(false)}
+                className="border-b border-line/70 py-4 font-display text-2xl text-ink"
+              >
+                Seyahatlerim
+              </Link>
+              <Link
+                href="/hesabim/profil"
+                onClick={() => setOpen(false)}
+                className="border-b border-line/70 py-4 font-display text-2xl text-ink"
+              >
+                Profil ve güvenlik
+              </Link>
+              {(session.role === 'HOST' || session.role === 'ADMIN') && (
+                <Link
+                  href="/hesabim/ev-sahibi/rezervasyonlar"
+                  onClick={() => setOpen(false)}
+                  className="border-b border-line/70 py-4 font-display text-2xl text-ink"
+                >
+                  Ev sahibi paneli
+                </Link>
+              )}
               {session.role === 'ADMIN' && (
                 <Link
                   href="/admin"
@@ -251,6 +274,17 @@ function AccountMenu({
           <MenuLink href="/hesabim" onClick={() => setOpen(false)}>
             Hesabım
           </MenuLink>
+          <MenuLink href="/hesabim/seyahatlerim" onClick={() => setOpen(false)}>
+            Seyahatlerim
+          </MenuLink>
+          <MenuLink href="/hesabim/profil" onClick={() => setOpen(false)}>
+            Profil ve güvenlik
+          </MenuLink>
+          {(session.role === 'HOST' || session.role === 'ADMIN') && (
+            <MenuLink href="/hesabim/ev-sahibi/rezervasyonlar" onClick={() => setOpen(false)}>
+              Ev sahibi paneli
+            </MenuLink>
+          )}
           {session.role === 'ADMIN' && (
             <MenuLink href="/admin" onClick={() => setOpen(false)}>
               Yönetim paneli

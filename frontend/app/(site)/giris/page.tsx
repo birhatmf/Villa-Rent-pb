@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import AuthShell, { AuthLink, fieldCls } from '@/components/site/AuthShell';
 import { login } from '@/lib/authApi';
+import { safeInternalPath } from '@/lib/navigation';
 
 export default function GirisPage() {
   return (
@@ -27,7 +28,7 @@ function GirisForm() {
     setError(null);
     try {
       await login(email, password);
-      router.replace(params.get('next') || '/hesabim');
+      router.replace(safeInternalPath(params.get('next'), '/hesabim'));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Giriş yapılamadı.');
@@ -67,6 +68,7 @@ function GirisForm() {
             <input
               type="password"
               required
+              maxLength={72}
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

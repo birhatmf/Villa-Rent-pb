@@ -50,6 +50,15 @@ export default function HesabimPage() {
         />
       </dl>
 
+      <div className="mt-6 flex flex-wrap gap-5">
+        <Link href="/hesabim/profil" className="text-[0.88rem] text-ink underline underline-offset-4 hover:text-gold">
+          Profil ve güvenlik
+        </Link>
+        <Link href="/hesabim/seyahatlerim" className="text-[0.88rem] text-ink underline underline-offset-4 hover:text-gold">
+          Tüm seyahatlerim
+        </Link>
+      </div>
+
       {user.role === 'HOST' || user.role === 'ADMIN' ? (
         <div className="mt-14 flex flex-col items-start gap-4 rounded-xl border border-line bg-sand/30 px-6 py-7 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -60,10 +69,10 @@ export default function HesabimPage() {
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
             <Link
-              href="/hesabim/rezervasyonlarim"
+              href="/hesabim/ev-sahibi/rezervasyonlar"
               className="rounded-full border border-ink/25 px-6 py-3 text-[0.9rem] text-ink transition-colors hover:border-ink"
             >
-              Rezervasyonlarım
+              Gelen rezervasyonlar
             </Link>
             <Link
               href="/hesabim/villalarim"
@@ -124,17 +133,24 @@ function BookingsSection() {
   const [bookings, setBookings] = useState<GuestBooking[] | null>(null);
 
   useEffect(() => {
-    listMyBookings()
+    listMyBookings({ pageSize: 3 })
       .then((result) => setBookings(result.items))
       .catch(() => setBookings([]));
   }, []);
 
-  if (bookings === null || bookings.length === 0) return null;
+  if (bookings === null) return null;
 
   return (
     <div className="mt-14">
-      <h2 className="eyebrow text-muted">Rezervasyonlarım</h2>
-      <ul className="mt-5 divide-y divide-line border-y border-line">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="eyebrow text-muted">Son seyahatlerim</h2>
+        <Link href="/hesabim/seyahatlerim" className="text-[0.82rem] text-ink underline underline-offset-4">Tümünü gör</Link>
+      </div>
+      {bookings.length === 0 ? (
+        <p className="mt-5 rounded-xl border border-dashed border-line px-5 py-7 text-center text-[0.9rem] text-muted">
+          Henüz rezervasyonunuz yok. <Link href="/villalar" className="text-ink underline underline-offset-4">Villaları keşfedin</Link>.
+        </p>
+      ) : <ul className="mt-5 divide-y divide-line border-y border-line">
         {bookings.map((booking) => {
           const state =
             booking.status === 'CONFIRMED'
@@ -147,7 +163,7 @@ function BookingsSection() {
           return (
             <li key={booking.id} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4">
               <div className="min-w-0">
-                <Link href={`/rezervasyon/${booking.id}`} className="text-[0.95rem] text-ink underline-offset-4 hover:underline">
+                <Link href={`/hesabim/seyahatlerim/${booking.id}`} className="text-[0.95rem] text-ink underline-offset-4 hover:underline">
                   {booking.villa.title}
                 </Link>
                 <p className="mt-0.5 text-[0.82rem] text-muted">
@@ -168,7 +184,7 @@ function BookingsSection() {
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </div>
   );
 }

@@ -67,24 +67,67 @@ export class UsersService {
   }
 
   async update(id: string, data: { role?: Role; active?: boolean }, actorId: string) {
-    await this.get(id);
-    // Kilitlenme koruması: yönetici kendi yetkisini düşüremez / kendini engelleyemez.
-    if (id === actorId) {
-      if (data.role && data.role !== 'ADMIN') {
-        throw new BadRequestException('Kendi yönetici yetkinizi kaldıramazsınız.');
-      }
-      if (data.active === false) {
-        throw new BadRequestException('Kendi hesabınızı engelleyemezsiniz.');
-      }
+    if (data.role === undefined && data.active === undefined) {
+      throw new BadRequestException('Değiştirilecek bir alan gönderin.');
     }
-    return this.prisma.user.update({ where: { id }, data, select: SAFE });
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
+      if (!locked.length) throw new NotFoundException('Üye bulunamadı.');
+      const target = await tx.user.findUniqueOrThrow({
+        where: { id },
+        select: { role: true, active: true, _count: { select: { villas: true } } },
+      });
+
+      // Kilitlenme koruması: yönetici kendi yetkisini düşüremez / kendini engelleyemez.
+      if (id === actorId) {
+        if (data.role && data.role !== 'ADMIN') {
+          throw new BadRequestException('Kendi yönetici yetkinizi kaldıramazsınız.');
+        }
+        if (data.active === false) {
+          throw new BadRequestException('Kendi hesabınızı engelleyemezsiniz.');
+        }
+      }
+      if (data.role === 'GUEST' && target._count.villas > 0) {
+        throw new BadRequestException('Villaları bağlı olan ev sahibi misafir rolüne düşürülemez. Önce villaları devredin.');
+      }
+      const removesAdmin = target.role === 'ADMIN' && target.active && ((data.role && data.role !== 'ADMIN') || data.active === false);
+      if (removesAdmin) {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('my_villa_active_admin'))`;
+        if (await this.isLastActiveAdmin(id, tx)) {
+          throw new BadRequestException('Son aktif yönetici hesabının yetkisi kaldırılamaz.');
+        }
+      }
+      return tx.user.update({ where: { id }, data: { ...data, sessionVersion: { increment: 1 } }, select: SAFE });
+    });
   }
 
   async remove(id: string, actorId: string) {
     if (id === actorId) throw new BadRequestException('Kendi hesabınızı silemezsiniz.');
-    await this.get(id);
-    await this.prisma.user.delete({ where: { id } });
-    return { ok: true };
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
+      if (!locked.length) throw new NotFoundException('Üye bulunamadı.');
+      const target = await tx.user.findUniqueOrThrow({
+        where: { id },
+        select: { role: true, active: true, _count: { select: { villas: true, bookings: true } } },
+      });
+      if (target._count.villas || target._count.bookings) {
+        throw new BadRequestException('Operasyon kaydı olan hesap silinemez; hesabı pasifleştirin.');
+      }
+      if (target.role === 'ADMIN' && target.active) {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('my_villa_active_admin'))`;
+        if (await this.isLastActiveAdmin(id, tx)) {
+          throw new BadRequestException('Son aktif yönetici hesabı silinemez.');
+        }
+      }
+      await tx.user.delete({ where: { id } });
+      return { ok: true };
+    });
+  }
+
+  private async isLastActiveAdmin(excludedId: string, tx: Prisma.TransactionClient) {
+    return (await tx.user.count({
+      where: { id: { not: excludedId }, role: 'ADMIN', active: true },
+    })) === 0;
   }
 
   counts() {

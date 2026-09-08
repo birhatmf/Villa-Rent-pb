@@ -42,7 +42,7 @@ export default function ReservationPage() {
       .then(setBooking)
       .catch((cause) => {
         if (cause instanceof ApiError && cause.status === 401) {
-          router.replace(`/giris?next=${encodeURIComponent(`/rezervasyon/${id}`)}`);
+          router.replace(`/giris?next=${encodeURIComponent(`/hesabim/seyahatlerim/${id}`)}`);
           return;
         }
         setLoadError(cause instanceof Error ? cause.message : 'Rezervasyon bulunamadı.');
@@ -155,7 +155,7 @@ export default function ReservationPage() {
               <p className="mt-5 text-[0.85rem] leading-relaxed text-muted">
                 Havale açıklamasına <strong className="text-ink">{payment.reference}</strong> yazın — ödemeniz bu kodla
                 eşleştirilir. Bildirimden sonra tarihleriniz {payment.deadlineHours} saat daha size ayrılır ve dekont
-                kontrol edilir.
+                kontrol edilir. Sonucu bu sayfadan takip edebilirsiniz.
               </p>
               {payment.note && (
                 <p className="mt-4 rounded-lg bg-sand/60 p-4 text-[0.85rem] leading-relaxed text-ink-soft">{payment.note}</p>
@@ -196,7 +196,7 @@ export default function ReservationPage() {
         <section className="mt-12">
           <p className="rounded-xl border border-olive/40 bg-olive/10 p-5 text-[0.92rem] leading-relaxed text-ink">
             Havale bildiriminiz alındı. Dekont kontrol edildikten sonra rezervasyonunuz onaylanacak
-            {countdown ? ` (tarihleriniz ${countdown} boyunca ayrılmış durumda)` : ''}. Onay e‑postayla bildirilir.
+            {countdown ? ` (tarihleriniz ${countdown} boyunca ayrılmış durumda)` : ''}. Sonucu bu sayfadan takip edebilirsiniz.
           </p>
           <ContactSupport booking={booking} />
         </section>
@@ -204,7 +204,7 @@ export default function ReservationPage() {
 
       {booking.status === 'CONFIRMED' && (
         <p className="mt-12 rounded-xl border border-olive/40 bg-olive/10 p-5 text-[0.92rem] leading-relaxed text-ink">
-          Ödemeniz doğrulandı ve tarihleriniz kesinleşti. Giriş günü detayları e‑postanıza gönderildi.
+          Ödemeniz doğrulandı ve tarihleriniz kesinleşti. Giriş bilgileri için destek ekibi sizinle iletişime geçecek.
         </p>
       )}
 
@@ -219,8 +219,8 @@ export default function ReservationPage() {
         </div>
       )}
 
-      <Link href="/hesabim" className="mt-12 inline-block text-[0.85rem] text-muted underline underline-offset-4 hover:text-ink">
-        Rezervasyonlarım
+      <Link href="/hesabim/seyahatlerim" className="mt-12 inline-block text-[0.85rem] text-muted underline underline-offset-4 hover:text-ink">
+        Tüm seyahatlerim
       </Link>
     </div>
   );

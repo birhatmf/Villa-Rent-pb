@@ -53,7 +53,7 @@ export default function HostReservationsPage() {
     <div className="flex h-full flex-col">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-surface px-6 py-3">
         <h1 className="font-display text-lg font-light text-ink">
-          Rezervasyonlarım
+          Gelen rezervasyonlar
           {items && <span className="ml-2.5 text-[0.85rem] text-muted">{items.length}</span>}
         </h1>
         <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export default function HostReservationsPage() {
         ) : (
           <div className="divide-y divide-line rounded-xl border border-line bg-surface">
             {items.map((booking) => (
-              <Link href={`/hesabim/rezervasyonlarim/${booking.id}`} key={booking.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-sand/35">
+              <Link href={`/hesabim/ev-sahibi/rezervasyonlar/${booking.id}`} key={booking.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-sand/35">
                 <div className="min-w-0">
                   <p className="truncate text-[0.92rem] text-ink">
                     {booking.villa.title}

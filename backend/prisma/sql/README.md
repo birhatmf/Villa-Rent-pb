@@ -41,6 +41,13 @@ npx prisma db execute --file prisma/sql/20260907_booking_payment.sql --schema pr
 
 `Booking_prepayment_range` kısıtı kaporanın 0 ile toplam tutar arasında kalmasını garanti eder; rezervasyon tarihleri değiştiğinde kapora yeniden hesaplanır.
 
+`20260908_customer_account.sql`, aktif oturumları parola değişiminden sonra anında
+geçersiz kılan hesap sürümünü ve profil güncelleme zamanını ekler:
+
+```sh
+npx prisma db execute --file prisma/sql/20260908_customer_account.sql --schema prisma/schema.prisma
+```
+
 iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 16 karakterlik, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Tanımlı değilse mevcut `JWT_SECRET` kullanılır; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
 
 Kalıcı Prisma Migrate geçmişine geçerken önce mevcut şema için baseline oluşturulup bu migration uygulanmış olarak işaretlenmelidir. Canlı veritabanı resetlenmez ve veri silen seed komutu kullanılmaz.

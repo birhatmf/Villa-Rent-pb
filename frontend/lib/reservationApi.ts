@@ -67,7 +67,16 @@ export const createHold = (input: CreateHoldInput) =>
 
 export const getBooking = (id: string) => req<GuestBooking>(`/bookings/${id}`);
 
-export const listMyBookings = () => req<{ items: GuestBooking[] }>('/bookings');
+export type OwnBookingScope = 'all' | 'action-required' | 'upcoming' | 'past' | 'cancelled';
+
+export const listMyBookings = (input: { scope?: OwnBookingScope; page?: number; pageSize?: number } = {}) => {
+  const query = new URLSearchParams();
+  if (input.scope && input.scope !== 'all') query.set('scope', input.scope);
+  if (input.page) query.set('page', String(input.page));
+  if (input.pageSize) query.set('pageSize', String(input.pageSize));
+  const suffix = query.size ? `?${query}` : '';
+  return req<{ items: GuestBooking[]; total: number; page: number; pageSize: number }>(`/bookings${suffix}`);
+};
 
 export const declarePayment = (id: string) =>
   req<GuestBooking>(`/bookings/${id}/payment-declared`, { method: 'POST' });

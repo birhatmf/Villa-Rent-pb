@@ -1,10 +1,10 @@
-import { Controller, Delete, Get, Headers, Param, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Headers, Param, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { JwtGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { BookingsService } from './bookings.service';
-import { CreateHoldDto } from './dto';
+import { CreateHoldDto, OwnBookingListDto } from './dto';
 
 type AuthRequest = Request & { user: { sub: string } };
 
@@ -24,8 +24,8 @@ export class BookingsController {
   }
 
   @Get()
-  list(@Req() req: AuthRequest) {
-    return this.bookings.listOwn(req.user.sub);
+  list(@Query() query: OwnBookingListDto, @Req() req: AuthRequest) {
+    return this.bookings.listOwn(req.user.sub, query);
   }
 
   @Get(':id')

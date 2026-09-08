@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   IsBoolean,
@@ -6,12 +6,14 @@ import {
   IsOptional,
   IsString,
   Length,
+  MaxLength,
   MinLength,
   Equals,
 } from 'class-validator';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtGuard, TOKEN_COOKIE } from './jwt.guard';
+import { RolesGuard } from './roles.guard';
 
 /** Okunabilir oturum çerezi — yalnızca arayüz/yönlendirme için. Yetki değil. */
 export const USER_COOKIE = 'mv_user';
@@ -22,6 +24,7 @@ class LoginDto {
 
   @IsString()
   @MinLength(6, { message: 'Şifre en az 6 karakter olmalı.' })
+  @MaxLength(72, { message: 'Şifre en fazla 72 karakter olabilir.' })
   password!: string;
 }
 
@@ -35,6 +38,7 @@ class RegisterDto {
 
   @IsString()
   @MinLength(8, { message: 'Şifre en az 8 karakter olmalı.' })
+  @MaxLength(72, { message: 'Şifre en fazla 72 karakter olabilir.' })
   password!: string;
 
   @IsOptional()
@@ -48,6 +52,30 @@ class RegisterDto {
   @IsOptional()
   @IsBoolean()
   marketingOptIn?: boolean;
+}
+
+class UpdateProfileDto {
+  @IsOptional()
+  @IsString()
+  @Length(2, 80, { message: 'Ad soyad en az 2 karakter olmalı.' })
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 30)
+  phone?: string;
+}
+
+class ChangePasswordDto {
+  @IsString()
+  @MinLength(6, { message: 'Mevcut şifre en az 6 karakter olmalı.' })
+  @MaxLength(72, { message: 'Şifre en fazla 72 karakter olabilir.' })
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Yeni şifre en az 8 karakter olmalı.' })
+  @MaxLength(72, { message: 'Şifre en fazla 72 karakter olabilir.' })
+  newPassword!: string;
 }
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -105,8 +133,33 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, RolesGuard)
   me(@Req() req: Request & { user: { sub: string } }) {
     return this.auth.me(req.user.sub);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtGuard, RolesGuard)
+  async updateProfile(
+    @Body() dto: UpdateProfileDto,
+    @Req() req: Request & { user: { sub: string } },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { token, user } = await this.auth.updateProfile(req.user.sub, dto);
+    setSession(res, token, user);
+    return user;
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request & { user: { sub: string } },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { token, user } = await this.auth.changePassword(req.user.sub, dto.currentPassword, dto.newPassword);
+    setSession(res, token, user);
+    return user;
   }
 }

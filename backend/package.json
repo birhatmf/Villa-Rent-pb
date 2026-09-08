@@ -9,6 +9,7 @@
     "test:availability": "ts-node test/availability-unit.ts",
     "test:payment": "ts-node test/payment-unit.ts",
     "test:booking-concurrency": "ts-node test/booking-concurrency.ts",
+    "test:customer-access": "ts-node test/customer-access.ts",
     "test:ical-parser": "ts-node test/ical-parser.ts",
     "test:ical-security": "ts-node test/ical-security.ts",
     "test:ical-sync": "ts-node test/ical-sync.ts",

@@ -106,7 +106,7 @@ function NewReservationForm() {
         customerEmail: contact.customerEmail.trim() || undefined,
         customerPhone: contact.customerPhone.trim() || undefined,
       });
-      router.replace(`/rezervasyon/${booking.id}`);
+      router.replace(`/hesabim/seyahatlerim/${booking.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Rezervasyon oluşturulamadı.');
       setBusy(false);

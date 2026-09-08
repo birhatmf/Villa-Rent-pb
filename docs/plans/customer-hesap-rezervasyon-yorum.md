@@ -1,6 +1,18 @@
 # Customer hesap, seyahat ve doğrulanmış yorum planı
 
-Son inceleme: **7 Eylül 2026**
+Son inceleme: **8 Eylül 2026**
+
+### Uygulama durumu
+
+8 Eylül 2026'da C1'in ilk teslimi tamamlandı: customer seyahatleri ve owner gelen
+rezervasyonları ayrı rotalara taşındı; customer listesine filtre ve sayfalama,
+hesaba profil/parola değiştirme, tüm kişisel uçlara aktif hesap ve oturum sürümü
+kontrolü eklendi. Admin rol/pasiflik değişiklikleri eski tokenları iptal ediyor;
+son aktif admin ve bağlı villası olan owner korunuyor. Gerçek olmayan e-posta
+bildirim metinleri kaldırıldı.
+
+C1 içinde e-posta doğrulama, parola sıfırlama, onay metni sürümü ve hesap kapatma;
+C2–C4 kapsamındaki talep, bildirim ve yorum modülleri sıradaki teslimlerdir.
 
 Bu belge, mevcut kod üzerinden customer/misafir yolculuğunu inceler ve satış sonrası gerekli modülleri sıralar. Amaç ilk sürümde güvenilir bir hesap, rezervasyon self servis alanı ve yalnızca gerçekten konaklayan kişinin yorum yapabildiği sade bir sistem kurmaktır.
 
@@ -9,14 +21,14 @@ Bu belge, mevcut kod üzerinden customer/misafir yolculuğunu inceler ve satış
 | Alan | Durum | Kodda bugün olan | Eksik veya risk |
 | --- | --- | --- | --- |
 | Üyelik oluşturma | Kısmen hazır | Ad, e-posta, telefon, parola, KVKK ve pazarlama tercihiyle kayıt; kayıt sonrası oturum | E-posta sahipliği doğrulanmıyor, parola tekrarı yok, onay metni sürümü saklanmıyor |
-| Giriş/çıkış | Kısmen hazır | HTTP-only JWT çerezi, genel hata mesajı, IP bazlı hız sınırı | Parola sıfırlama/değiştirme, oturum iptali ve güvenli `next` yönlendirmesi yok |
-| Profil | Sadece görüntüleme | Ad, e-posta, telefon ve üyelik tarihi gösteriliyor | Ad/telefon/e-posta güncelleme, hesap kapatma ve veri talebi yok |
-| Favoriler | Hazır | Ekleme, kaldırma ve hesapta listeleme | Pasifleştirilen hesap, JWT süresi bitene kadar favori uçlarını kullanabilir |
+| Giriş/çıkış | Büyük ölçüde hazır | HTTP-only JWT, genel hata, hız sınırı, güvenli `next`, parola değiştirme ve oturum iptali | Parola sıfırlama ve aktif cihaz listesi yok |
+| Profil | Kısmen hazır | Ad ve telefon düzenleme, e-posta/üyelik bilgisi görüntüleme | Doğrulamalı e-posta değişimi, hesap kapatma ve veri talebi yok |
+| Favoriler | Hazır | Ekleme, kaldırma, hesapta listeleme ve her istekte aktif hesap kontrolü | Koleksiyon/paylaşım sonraki kapsam |
 | Rezervasyon oluşturma | Instant villada hazır | Müsaitlik/fiyat yeniden kontrolü, idempotent `HOLD`, havale bildirimi | `REQUEST` villa için gerçek talep kaydı yok; bağlantı yalnızca iletişim sayfasına gider |
-| Kendi rezervasyonları | Kısmen hazır | `/hesabim` içinde son 50 kayıt ve rezervasyon ödeme detayı | Misafire özel sayfa yok; `/hesabim/rezervasyonlarim` host ekranı ve middleware GUEST rolünü engelliyor; sayfalama/gelecek-geçmiş ayrımı yok |
+| Kendi rezervasyonları | Hazır | `/hesabim/seyahatlerim` altında işlem gereken/yaklaşan/geçmiş/iptal filtreleri, sayfalama ve sahiplik kontrollü detay | Zaman çizgisi ve C2 aksiyonları sırada |
 | Rezervasyon değişikliği | Yok | Admin/host değiştirebilir | Misafir tarih/kişi değişikliği talep edemez |
 | İptal | Kısmen hazır | Misafir yalnızca `HOLD` bırakabilir; onaylı rezervasyonu destek iptal eder | İptal koşulu, iade önizlemesi ve takip edilebilir iptal talebi yok |
-| Bildirim | Yok | Ekran metinleri onayın e-postayla geleceğini söylüyor | E-posta sağlayıcısı, kuyruk/outbox ve gönderim kaydı yok |
+| Bildirim | Yok | Durumlar hesap ekranından takip ediliyor; gönderilmeyen e-posta için vaat gösterilmiyor | E-posta sağlayıcısı, kuyruk/outbox ve gönderim kaydı yok |
 | Konaklama bilgileri | Yok | Tarihler ve ödeme özeti var | Giriş adresi/talimatı, ev kuralları snapshot'ı, acil iletişim ve çıkış hatırlatması yok |
 | Yorumlar | Yok | `Villa.rating` ve `reviewCount` alanları public sayfalarda gösteriliyor | Yorum kaydı, uygunluk kontrolü, moderasyon, host yanıtı ve puan güncellemesi yok |
 | Destek | Harici | WhatsApp/telefon/e-posta bağlantısı | Rezervasyona bağlı destek kaydı ve durum takibi yok |

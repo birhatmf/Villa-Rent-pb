@@ -30,3 +30,12 @@ export const login = (email: string, password: string) =>
 export const logout = () => req<{ ok: true }>('/auth/logout', { method: 'POST' });
 
 export const me = () => req<AccountUser>('/auth/me');
+
+export const updateProfile = (input: { name?: string; phone?: string }) =>
+  req<AccountUser>('/auth/me', { method: 'PATCH', body: JSON.stringify(input) });
+
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  req<AccountUser>('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });

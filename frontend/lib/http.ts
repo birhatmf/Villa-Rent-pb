@@ -22,6 +22,11 @@ export async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const msg = Array.isArray(body.message) ? body.message[0] : body.message;
+    // Süresi dolmuş, parola değişimiyle iptal edilmiş veya kapatılmış hesabın
+    // okunabilir çerezini de temizle; middleware giriş sayfasında döngüye girmesin.
+    if (res.status === 401 && path !== '/auth/logout') {
+      await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+    }
     throw new ApiError(msg ?? `İstek başarısız (${res.status})`, res.status);
   }
   return res.status === 204 ? (undefined as T) : res.json();

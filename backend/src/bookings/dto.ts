@@ -53,6 +53,13 @@ export class CancelBookingDto extends BookingVersionDto {
 const BOOKING_STATUSES = ['HOLD', 'CONFIRMED', 'EXPIRED', 'CANCELLED'] as const;
 const BOOKING_PAYMENT_STATUSES = ['NONE', 'PENDING', 'DECLARED', 'PAID'] as const;
 const BOOKING_CHANNELS = ['WEBSITE', 'ADMIN'] as const;
+const OWN_BOOKING_SCOPES = ['all', 'action-required', 'upcoming', 'past', 'cancelled'] as const;
+
+export class OwnBookingListDto {
+  @IsOptional() @IsIn(OWN_BOOKING_SCOPES) scope?: (typeof OWN_BOOKING_SCOPES)[number];
+  @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) @Max(50) pageSize?: number;
+}
 
 export class BookingListDto {
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: (typeof BOOKING_STATUSES)[number];
