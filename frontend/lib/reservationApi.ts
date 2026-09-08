@@ -3,6 +3,23 @@
 import { req } from './http';
 
 export type BookingPaymentStatus = 'NONE' | 'PENDING' | 'DECLARED' | 'PAID';
+export type GuestBookingStatus = 'REQUESTED' | 'HOLD' | 'CONFIRMED' | 'EXPIRED' | 'CANCELLED' | 'DECLINED' | 'WITHDRAWN';
+
+export type BookingServiceRequest = {
+  id: string;
+  requestedBy: string;
+  bookingId: string;
+  type: 'CHANGE' | 'CANCELLATION';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+  payload: { from: string; to: string; adults: number; children: number; infants: number; preview?: { totalAmount: number; currency: string } } | null;
+  customerNote: string | null;
+  resolutionNote: string | null;
+  refundStatus: 'NONE' | 'PENDING' | 'COMPLETED' | 'REJECTED';
+  refundAmount: number;
+  refundNote: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+};
 
 /** Misafirin kendi rezervasyonuna verilen havale bilgisi — halka açık uçta yoktur. */
 export type PaymentInstructions = {
@@ -19,7 +36,8 @@ export type PaymentInstructions = {
 export type GuestBooking = {
   id: string;
   villaId: string;
-  status: 'HOLD' | 'CONFIRMED' | 'EXPIRED' | 'CANCELLED';
+  guestId: string | null;
+  status: GuestBookingStatus;
   checkIn: string;
   checkOut: string;
   adults: number;
@@ -33,6 +51,7 @@ export type GuestBooking = {
   cleaningFeeAmount: number;
   depositAmount: number;
   totalAmount: number;
+  priceSnapshot: unknown;
   paymentStatus: BookingPaymentStatus;
   prepaymentAmount: number;
   paymentDeclaredAt: string | null;
@@ -44,6 +63,7 @@ export type GuestBooking = {
   version: number;
   villa: { title: string; slug: string };
   payment?: PaymentInstructions;
+  serviceRequests?: BookingServiceRequest[];
 };
 
 export type CreateHoldInput = {
@@ -60,6 +80,13 @@ export type CreateHoldInput = {
 
 export const createHold = (input: CreateHoldInput) =>
   req<GuestBooking>('/bookings/holds', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(input),
+  });
+
+export const createBookingRequest = (input: CreateHoldInput) =>
+  req<GuestBooking>('/bookings/requests', {
     method: 'POST',
     headers: { 'Idempotency-Key': crypto.randomUUID() },
     body: JSON.stringify(input),
@@ -83,6 +110,21 @@ export const declarePayment = (id: string) =>
 
 export const releaseHold = (id: string) =>
   req<GuestBooking>(`/bookings/${id}/hold`, { method: 'DELETE' });
+
+export const withdrawBookingRequest = (id: string) =>
+  req<GuestBooking>(`/bookings/${id}/withdraw`, { method: 'POST' });
+
+export const requestBookingChange = (id: string, input: { from: string; to: string; adults: number; children: number; infants: number; customerNote?: string }) =>
+  req<BookingServiceRequest>(`/bookings/${id}/change-request`, { method: 'POST', body: JSON.stringify(input) });
+
+export const previewBookingChange = (id: string, input: { from: string; to: string; adults: number; children: number; infants: number }) =>
+  req<import('./api').AvailabilityResult>(`/bookings/${id}/change-preview`, { method: 'POST', body: JSON.stringify(input) });
+
+export const requestBookingCancellation = (id: string, reason: string) =>
+  req<BookingServiceRequest>(`/bookings/${id}/cancellation-request`, { method: 'POST', body: JSON.stringify({ reason }) });
+
+export const withdrawServiceRequest = (requestId: string) =>
+  req<BookingServiceRequest>(`/bookings/service-requests/${requestId}/withdraw`, { method: 'POST' });
 
 // Halka açık uçlar da aynı `req` üzerinden okunur; oturum çerezi zararsız gider.
 export const getPublicVilla = (slug: string) =>

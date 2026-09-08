@@ -128,7 +128,7 @@ export default function VillaBooking({
     children: String(guests.children),
     infants: String(guests.infants),
   })}`;
-  const requestHref = `/iletisim?villa=${encodeURIComponent(villa.slug)}&from=${from}&to=${to}`;
+  const requestHref = reserveHref;
 
   return (
     <>

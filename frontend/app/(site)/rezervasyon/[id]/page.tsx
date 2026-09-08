@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import ReservationSteps from '@/components/site/ReservationSteps';
+import BookingServiceRequests from '@/components/site/BookingServiceRequests';
 import { formatPrice } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { declarePayment, getBooking, getContactSettings, releaseHold, type GuestBooking } from '@/lib/reservationApi';
@@ -49,6 +50,8 @@ export default function ReservationPage() {
       });
   }, [id, router]);
 
+  async function reload() { setBooking(await getBooking(id)); }
+
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -91,6 +94,12 @@ export default function ReservationPage() {
           ? 'Rezervasyonunuz onaylandı'
           : declared
             ? 'Ödemeniz kontrol ediliyor'
+            : booking.status === 'REQUESTED'
+              ? 'Rezervasyon talebiniz alındı'
+              : booking.status === 'DECLINED'
+                ? 'Rezervasyon talebiniz reddedildi'
+                : booking.status === 'WITHDRAWN'
+                  ? 'Rezervasyon talebini geri çektiniz'
             : booking.status === 'CANCELLED'
               ? 'Rezervasyon iptal edildi'
               : expired
@@ -121,6 +130,8 @@ export default function ReservationPage() {
         />
         <Row label="Hasar depozitosu" value={`${formatPrice(booking.depositAmount, booking.currency)} (girişte)`} />
       </dl>
+
+      <BookingServiceRequests booking={booking} onReload={reload} />
 
       {awaitingPayment && payment && (
         <section className="mt-12">
@@ -203,14 +214,17 @@ export default function ReservationPage() {
       )}
 
       {booking.status === 'CONFIRMED' && (
-        <p className="mt-12 rounded-xl border border-olive/40 bg-olive/10 p-5 text-[0.92rem] leading-relaxed text-ink">
-          Ödemeniz doğrulandı ve tarihleriniz kesinleşti. Giriş bilgileri için destek ekibi sizinle iletişime geçecek.
-        </p>
+        <div className="mt-12 rounded-xl border border-olive/40 bg-olive/10 p-5 text-[0.92rem] leading-relaxed text-ink">
+          <p>Ödemeniz doğrulandı ve tarihleriniz kesinleşti. Giriş bilgileri için destek ekibi sizinle iletişime geçecek.</p>
+          <Link href="/hesabim/yorumlarim" className="mt-3 inline-block text-[0.85rem] underline underline-offset-4">
+            Konaklama bittiyse yorumunuzu yazın
+          </Link>
+        </div>
       )}
 
-      {(booking.status === 'CANCELLED' || expired) && (
+      {(booking.status === 'CANCELLED' || booking.status === 'DECLINED' || booking.status === 'WITHDRAWN' || expired) && (
         <div className="mt-12 rounded-xl border border-line bg-sand/40 p-5 text-[0.92rem] leading-relaxed text-muted">
-          {booking.status === 'CANCELLED'
+          {booking.status === 'CANCELLED' || booking.status === 'DECLINED' || booking.status === 'WITHDRAWN'
             ? booking.cancellationNote || 'Bu rezervasyon iptal edildi.'
             : 'Ödeme bildirimi yapılmadığı için tarihler serbest bırakıldı.'}
           <Link href={`/villalar/${booking.villa.slug}`} className="mt-3 block text-ink underline underline-offset-4">

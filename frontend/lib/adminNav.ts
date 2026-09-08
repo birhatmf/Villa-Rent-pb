@@ -38,6 +38,7 @@ export const ADMIN_NAV: NavGroup[] = [
     items: [
       { label: 'Rezervasyonlar', href: '/admin/rezervasyonlar', icon: 'calendar' },
       { label: 'Takvim', href: '/admin/takvim', icon: 'calendar' },
+      { label: 'Yorumlar', href: '/admin/yorumlar', icon: 'sparkle' },
       { label: 'Ödeme ayarları', href: '/admin/odeme-ayarlari', icon: 'payment' },
     ],
   },

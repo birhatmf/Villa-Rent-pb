@@ -39,9 +39,13 @@ model User {
 
   villas             Villa[]
   favorites          Favorite[]
-  bookings           Booking[]         @relation("BookingGuest")
-  audits             CalendarAudit[]   @relation("CalendarAuditActor")
+  bookings           Booking[]               @relation("BookingGuest")
+  audits             CalendarAudit[]         @relation("CalendarAuditActor")
   linkedApplications HostApplication[]
+  serviceRequests    BookingServiceRequest[] @relation("ServiceRequestRequester")
+  reviews            Review[]                @relation("ReviewGuest")
+  reviewResponses    ReviewResponse[]        @relation("ReviewResponder")
+  moderatedReviews   Review[]                @relation("ReviewModerator")
 
   @@index([role, active])
   @@index([createdAt])
@@ -171,10 +175,37 @@ enum VillaBlockedDateState {
 }
 
 enum BookingStatus {
+  REQUESTED
   HOLD
   CONFIRMED
   EXPIRED
   CANCELLED
+  DECLINED
+  WITHDRAWN
+}
+
+enum ServiceRequestType {
+  CHANGE
+  CANCELLATION
+}
+
+enum ServiceRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum RefundStatus {
+  NONE
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  HIDDEN
 }
 
 enum BookingChannel {
@@ -307,6 +338,7 @@ model Villa {
   bookings       Booking[]
   calendarAudits CalendarAudit[]
   icalSources    IcalSource[]
+  reviews        Review[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -442,10 +474,91 @@ model Booking {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
+  serviceRequests BookingServiceRequest[]
+  review          Review?
+
   @@unique([idempotencyOwner, idempotencyKey])
   @@index([villaId, status, checkIn, checkOut])
   @@index([guestId, createdAt])
   @@index([paymentStatus, createdAt])
+}
+
+/// Onaylı bir rezervasyonda misafirin (değişiklik/iptal) veya ev sahibinin
+/// (yalnızca iptal) doğrudan yapamadığı, admin/host onayı gereken işlemler.
+/// Aynı rezervasyon+tür için tek aktif PENDING kaydı DB kısıtıyla korunur
+/// (bkz. 20260908_service_requests.sql — Prisma şeması kısmi unique index'i
+/// ifade edemez). Kaporanın iadesi POS olmadığı için otomatik değildir; admin
+/// CANCELLATION talebini onaylarken banka üzerinden yapılan iadeyi ayrıca not eder.
+model BookingServiceRequest {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  requestedBy String
+  requester   User   @relation("ServiceRequestRequester", fields: [requestedBy], references: [id], onDelete: Cascade)
+
+  type   ServiceRequestType
+  status ServiceRequestStatus @default(PENDING)
+
+  /// CHANGE için istenen yeni tarih/misafir sayısı: { from, to, adults, children, infants }.
+  payload Json?
+
+  customerNote    String?
+  resolutionNote  String?
+  refundStatus    RefundStatus @default(NONE)
+  refundAmount    Int          @default(0)
+  refundNote      String?
+  refundUpdatedAt DateTime?    @db.Timestamptz(3)
+
+  version    Int       @default(0)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  resolvedBy String?
+
+  @@index([bookingId, type, status])
+  @@index([status, createdAt])
+}
+
+/// Yalnızca tamamlanmış ve kullanıcıya bağlı onaylı konaklamadan üretilebilir.
+/// bookingId unique kısıtı eşzamanlı çift gönderimi veritabanında da engeller.
+model Review {
+  id        String  @id @default(cuid())
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  villaId String
+  villa   Villa  @relation(fields: [villaId], references: [id], onDelete: Restrict)
+  guestId String
+  guest   User   @relation("ReviewGuest", fields: [guestId], references: [id], onDelete: Restrict)
+
+  rating Int
+  body   String
+  status ReviewStatus @default(PUBLISHED)
+
+  moderationReason String?
+  moderatedAt      DateTime? @db.Timestamptz(3)
+  moderatedBy      String?
+  moderator        User?     @relation("ReviewModerator", fields: [moderatedBy], references: [id], onDelete: SetNull)
+
+  response  ReviewResponse?
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@index([villaId, status, createdAt])
+  @@index([guestId, createdAt])
+}
+
+/// Yayındaki yoruma ev sahibinin tek yanıtı. Customer yanıt zinciri açılmaz.
+model ReviewResponse {
+  id       String @id @default(cuid())
+  reviewId String @unique
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  responderId String?
+  responder   User?    @relation("ReviewResponder", fields: [responderId], references: [id], onDelete: SetNull)
+  body        String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
 }
 
 model IcalSource {

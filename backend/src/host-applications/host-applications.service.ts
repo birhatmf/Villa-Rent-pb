@@ -166,6 +166,21 @@ export class HostApplicationsService {
     return this.prisma.hostApplication.count({ where: { status: 'PENDING' } });
   }
 
+  /** Owner'ın kendi bağlı başvurusu — salt okunur, dashboard'daki "başvuru bilgileri" kartı için. */
+  async getForHost(hostId: string) {
+    return this.prisma.hostApplication.findFirst({
+      where: { linkedHostId: hostId },
+      select: {
+        iban: true,
+        permitNumber: true,
+        ownershipType: true,
+        maxCapacity: true,
+        address: true,
+        reviewedAt: true,
+      },
+    });
+  }
+
   /** Dosyayı diske yazar ve kaydını oluşturur. MIME + boyut kontrolü burada. */
   async addDocument(
     applicationId: string,

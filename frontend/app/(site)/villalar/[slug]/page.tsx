@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { formatPrice, getVillaBySlug } from '@/lib/api';
+import { formatPrice, getVillaBySlug, getVillaReviews } from '@/lib/api';
 import MinistryBadge from '@/components/site/MinistryBadge';
 import PhotoGallery from '@/components/site/PhotoGallery';
 import PushWhatsAppUp from '@/components/site/PushWhatsAppUp';
 import VillaBooking from '@/components/site/VillaBooking';
+import VillaReviews from '@/components/site/VillaReviews';
 import { Chip, Rule, Section, Stat } from '@/components/site/detailShared';
 import {
   BED_TYPE_LABEL,
@@ -31,7 +32,7 @@ export async function generateMetadata({
 
 export default async function VillaDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const villa = await getVillaBySlug(slug);
+  const [villa, reviews] = await Promise.all([getVillaBySlug(slug), getVillaReviews(slug)]);
   if (!villa) notFound();
 
   const orderedImages = (() => {
@@ -211,6 +212,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ sl
         <div className="mt-16">
           <MinistryBadge permitNumber={villa.permitNumber ?? null} />
         </div>
+        <VillaReviews reviews={reviews} />
       </div>
     </div>
   );

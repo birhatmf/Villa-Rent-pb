@@ -7,7 +7,7 @@ import ReservationSteps from '@/components/site/ReservationSteps';
 import { formatPrice, type AvailabilityResult, type VillaPublicDetail } from '@/lib/api';
 import { me, type AccountUser } from '@/lib/authApi';
 import { ApiError } from '@/lib/http';
-import { checkAvailability, createHold, getPublicVilla } from '@/lib/reservationApi';
+import { checkAvailability, createBookingRequest, createHold, getPublicVilla } from '@/lib/reservationApi';
 
 const REASON: Record<string, string> = {
   SALES_PAUSED: 'Bu villa şu anda rezervasyona kapalı.',
@@ -99,7 +99,8 @@ function NewReservationForm() {
     setBusy(true);
     setError(null);
     try {
-      const booking = await createHold({
+      const requestable = availability && (availability.bookingMode === 'REQUEST' || availability.reasons.every((reason) => reason === 'SYNC_UNHEALTHY'));
+      const booking = await (requestable ? createBookingRequest : createHold)({
         villaId: villa.id,
         ...stay,
         customerName: contact.customerName.trim() || undefined,
@@ -117,7 +118,9 @@ function NewReservationForm() {
   if (!user || !villa || !availability) return <Centered>Yükleniyor…</Centered>;
 
   const quote = availability.quote;
-  const blocked = !availability.available || availability.bookingMode !== 'INSTANT';
+  const syncOnly = !availability.available && availability.reasons.every((reason) => reason === 'SYNC_UNHEALTHY');
+  const requestable = syncOnly || (availability.available && availability.bookingMode === 'REQUEST');
+  const blocked = !availability.available && !syncOnly;
 
   return (
     <div className="mx-auto max-w-4xl px-6 pb-28 pt-36 lg:px-10">
@@ -164,9 +167,9 @@ function NewReservationForm() {
             </div>
           </section>
 
-          {blocked && (
-            <p role="alert" className="border-l-2 border-red-400 pl-3 text-[0.88rem] text-red-700">
-              {availability.bookingMode !== 'INSTANT'
+          {(blocked || requestable) && (
+            <p role={blocked ? 'alert' : 'status'} className={`border-l-2 pl-3 text-[0.88rem] ${blocked ? 'border-red-400 text-red-700' : 'border-gold text-muted'}`}>
+              {requestable
                 ? 'Bu villa talep üzerine kiralanıyor. Rezervasyon talebi bırakın.'
                 : availability.reasons.map((reason) => REASON[reason] ?? reason).join(' ')}
             </p>
@@ -178,10 +181,12 @@ function NewReservationForm() {
             disabled={busy || blocked}
             className="w-full rounded-full bg-ink py-3.5 text-[0.92rem] text-canvas transition-colors hover:bg-olive disabled:opacity-40 sm:w-auto sm:px-10"
           >
-            {busy ? 'Tarihler bekletiliyor…' : 'Ödeme adımına geç'}
+            {busy ? (requestable ? 'Talep gönderiliyor…' : 'Tarihler bekletiliyor…') : requestable ? 'Rezervasyon talebi gönder' : 'Ödeme adımına geç'}
           </button>
           <p className="text-[0.8rem] text-muted">
-            Devam ettiğinizde tarihler 10 dakika size ayrılır. Ödeme adımında kaporayı havaleyle gönderirsiniz.
+            {requestable
+              ? 'Talep stok kapatmaz. Ev sahibi veya yönetim kabul ederken tarihler yeniden kontrol edilir.'
+              : 'Devam ettiğinizde tarihler 10 dakika size ayrılır. Ödeme adımında kaporayı havaleyle gönderirsiniz.'}
           </p>
         </form>
 

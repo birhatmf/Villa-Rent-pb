@@ -108,9 +108,9 @@ export class UsersService {
       if (!locked.length) throw new NotFoundException('Üye bulunamadı.');
       const target = await tx.user.findUniqueOrThrow({
         where: { id },
-        select: { role: true, active: true, _count: { select: { villas: true, bookings: true } } },
+        select: { role: true, active: true, _count: { select: { villas: true, bookings: true, reviews: true } } },
       });
-      if (target._count.villas || target._count.bookings) {
+      if (target._count.villas || target._count.bookings || target._count.reviews) {
         throw new BadRequestException('Operasyon kaydı olan hesap silinemez; hesabı pasifleştirin.');
       }
       if (target.role === 'ADMIN' && target.active) {

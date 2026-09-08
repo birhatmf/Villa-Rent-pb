@@ -50,7 +50,33 @@ export class CancelBookingDto extends BookingVersionDto {
   @IsString() @Length(2, 300) note!: string;
 }
 
-const BOOKING_STATUSES = ['HOLD', 'CONFIRMED', 'EXPIRED', 'CANCELLED'] as const;
+export class CancellationRequestDto {
+  @IsString() @Length(2, 300) reason!: string;
+}
+
+export class DeclineRequestDto {
+  @IsString() @Length(2, 300) note!: string;
+}
+
+export class RequestChangeDto extends StayDto {
+  @IsOptional() @IsString() @Length(0, 500) customerNote?: string;
+}
+
+export class ResolveServiceRequestDto {
+  @IsIn(['APPROVED', 'REJECTED']) decision!: 'APPROVED' | 'REJECTED';
+  @IsOptional() @IsString() @Length(0, 500) resolutionNote?: string;
+  @IsOptional() @IsIn(['PENDING', 'COMPLETED', 'REJECTED']) refundStatus?: 'PENDING' | 'COMPLETED' | 'REJECTED';
+  @IsOptional() @IsInt() @Min(0) refundAmount?: number;
+  @IsOptional() @IsString() @Length(0, 500) refundNote?: string;
+}
+
+export class UpdateRefundDto {
+  @IsIn(['PENDING', 'COMPLETED', 'REJECTED']) status!: 'PENDING' | 'COMPLETED' | 'REJECTED';
+  @IsInt() @Min(0) amount!: number;
+  @IsOptional() @IsString() @Length(0, 500) note?: string;
+}
+
+const BOOKING_STATUSES = ['REQUESTED', 'HOLD', 'CONFIRMED', 'EXPIRED', 'CANCELLED', 'DECLINED', 'WITHDRAWN'] as const;
 const BOOKING_PAYMENT_STATUSES = ['NONE', 'PENDING', 'DECLARED', 'PAID'] as const;
 const BOOKING_CHANNELS = ['WEBSITE', 'ADMIN'] as const;
 const OWN_BOOKING_SCOPES = ['all', 'action-required', 'upcoming', 'past', 'cancelled'] as const;

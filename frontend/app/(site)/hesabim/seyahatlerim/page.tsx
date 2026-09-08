@@ -21,6 +21,9 @@ const dateLabel = (value: string) =>
   });
 
 function stateOf(booking: GuestBooking) {
+  if (booking.status === 'REQUESTED') return { label: 'Talep değerlendiriliyor', cls: 'bg-gold/20 text-ink' };
+  if (booking.status === 'DECLINED') return { label: 'Talep reddedildi', cls: 'bg-red-50 text-red-700' };
+  if (booking.status === 'WITHDRAWN') return { label: 'Talep geri çekildi', cls: 'bg-sand text-muted' };
   if (booking.status === 'CONFIRMED') return { label: 'Onaylandı', cls: 'bg-olive/15 text-olive' };
   if (booking.status === 'CANCELLED') return { label: 'İptal edildi', cls: 'bg-sand text-muted' };
   if (booking.status === 'EXPIRED') return { label: 'Süresi doldu', cls: 'bg-sand text-muted' };

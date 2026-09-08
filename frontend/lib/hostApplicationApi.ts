@@ -35,6 +35,18 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 export const createHostApplication = (input: CreateApplicationInput) =>
   req<{ id: string }>('/host-applications', { method: 'POST', body: JSON.stringify(input) });
 
+export type HostOnboardingInfo = {
+  iban: string;
+  permitNumber: string | null;
+  ownershipType: OwnershipType;
+  maxCapacity: number | null;
+  address: string;
+  reviewedAt: string | null;
+} | null;
+
+/** Owner'ın kendi bağlı başvurusu — dashboard'daki "başvuru bilgileri" kartı için, salt okunur. */
+export const getHostOnboarding = () => req<HostOnboardingInfo>('/host/onboarding');
+
 /** multipart — req() sarmalayıcısı Content-Type'ı zorluyor, o yüzden burada doğrudan fetch. */
 export async function uploadHostApplicationDocument(
   applicationId: string,

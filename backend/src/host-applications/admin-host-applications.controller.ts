@@ -93,3 +93,16 @@ export class AdminHostApplicationsController {
     return this.apps.removeDocument(id, docId);
   }
 }
+
+/** Owner kendi bağlı başvurusunu salt okunur görür — dashboard'daki "başvuru bilgileri" kartı için. */
+@Controller('host/onboarding')
+@UseGuards(JwtGuard, RolesGuard)
+@Roles('HOST', 'ADMIN')
+export class HostOnboardingController {
+  constructor(private apps: HostApplicationsService) {}
+
+  @Get()
+  get(@Req() req: Request & { user: { sub: string } }) {
+    return this.apps.getForHost(req.user.sub);
+  }
+}

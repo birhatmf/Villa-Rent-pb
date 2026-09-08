@@ -9,7 +9,9 @@ import {
   BookingListDto,
   BookingVersionDto,
   CancelBookingDto,
+  CancellationRequestDto,
   ChangeBookingDto,
+  DeclineRequestDto,
 } from './dto';
 
 type AuthRequest = Request & { user: { sub: string } };
@@ -46,6 +48,16 @@ export class AdminBookingsController {
   @Post(':id/confirm')
   confirm(@Param('id') id: string, @Body() dto: BookingVersionDto, @Req() req: AuthRequest) {
     return this.bookings.confirm(id, dto.version, req.user.sub);
+  }
+
+  @Post(':id/accept')
+  accept(@Param('id') id: string, @Req() req: AuthRequest) {
+    return this.bookings.acceptRequest(id, req.user.sub);
+  }
+
+  @Post(':id/decline')
+  decline(@Param('id') id: string, @Body() dto: DeclineRequestDto, @Req() req: AuthRequest) {
+    return this.bookings.declineRequest(id, req.user.sub, dto.note);
   }
 
   @Patch(':id')
@@ -90,6 +102,16 @@ export class HostBookingsController {
   // Onay ucu yok: kapora platformun parası, ev sahibi onu doğrulayamaz —
   // onaylama yalnızca AdminBookingsController üzerinden yapılır.
 
+  @Post(':id/accept')
+  accept(@Param('id') id: string, @Req() req: AuthRequest) {
+    return this.bookings.acceptRequest(id, req.user.sub, req.user.sub);
+  }
+
+  @Post(':id/decline')
+  decline(@Param('id') id: string, @Body() dto: DeclineRequestDto, @Req() req: AuthRequest) {
+    return this.bookings.declineRequest(id, req.user.sub, dto.note, req.user.sub);
+  }
+
   @Patch(':id')
   change(@Param('id') id: string, @Body() dto: ChangeBookingDto, @Req() req: AuthRequest) {
     return this.bookings.change(id, dto, req.user.sub, req.user.sub);
@@ -98,5 +120,10 @@ export class HostBookingsController {
   @Post(':id/cancel')
   cancel(@Param('id') id: string, @Body() dto: CancelBookingDto, @Req() req: AuthRequest) {
     return this.bookings.cancel(id, dto.version, dto.note, req.user.sub, req.user.sub);
+  }
+
+  @Post(':id/cancellation-request')
+  requestCancellation(@Param('id') id: string, @Body() dto: CancellationRequestDto, @Req() req: AuthRequest) {
+    return this.bookings.requestCancellationByHost(id, req.user.sub, dto.reason);
   }
 }

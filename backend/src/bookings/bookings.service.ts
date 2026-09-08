@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { formatCalendarDate, parseCalendarDate, parseStayDates } from '../villas/availability';
-import type { AdminCreateBookingDto, ChangeBookingDto, CreateHoldDto, OwnBookingListDto } from './dto';
+import type { AdminCreateBookingDto, ChangeBookingDto, CreateHoldDto, OwnBookingListDto, ResolveServiceRequestDto, UpdateRefundDto } from './dto';
 import { OccupancyService } from './occupancy.service';
 import { paymentReference, prepaymentFor, readPaymentSettings, revealGuestContact } from './payment';
 
@@ -113,7 +113,7 @@ export class BookingsService {
             customerEmail: input.customerEmail?.trim().toLowerCase() || guest[0].email,
             customerPhone: input.customerPhone?.trim() || guest[0].phone || undefined,
             ...quote,
-            priceSnapshot: quote.priceSnapshot as Prisma.InputJsonValue,
+            priceSnapshot: this.snapshot(quote.priceSnapshot),
             paymentStatus: 'PENDING',
             prepaymentAmount: prepaymentFor(quote.totalAmount, payment, villa.commissionRate),
             holdExpiresAt: new Date(now.getTime() + HOLD_MINUTES * 60_000),
@@ -134,6 +134,163 @@ export class BookingsService {
     } catch (error) {
       return this.recoverIdempotency(error, owner, key, requestHash);
     }
+  }
+
+  /**
+   * Talep modundaki (veya dış takvimi doğrulanamayan) villa için REQUESTED
+   * rezervasyon açar. Stok kilitlemez: aynı gecelere birden çok talep düşebilir,
+   * host/admin kabul ederken villa kilidi altında müsaitlik tekrar kontrol edilir
+   * (bkz. acceptRequest). REQUESTED kayıtlar stok sayılmadığı için aynı tarih için
+   * birden fazla talep alınabilir. SYNC_UNHEALTHY talebi engellemez; mevcut kesin
+   * rezervasyon/blok ile çakışma ve villa kuralı ihlalleri (kapasite, min gece, giriş günü, satış
+   * durdurulmuş) hâlâ engeller.
+   */
+  async createRequest(input: CreateHoldDto, userId: string, idempotencyKey?: string) {
+    const key = this.idempotencyKey(idempotencyKey);
+    const owner = `guest:${userId}`;
+    const normalized = this.normalizeStay(input);
+    const requestHash = this.hash({ villaId: input.villaId, ...normalized, kind: 'REQUEST' });
+
+    try {
+      return await this.occupancy.withVillaLock(input.villaId, async (tx, now) => {
+        const existing = await this.findIdempotent(tx, owner, key, requestHash);
+        if (existing) return this.response(existing);
+
+        const guest = await tx.$queryRaw<{ id: string; name: string; email: string; phone: string | null }[]>`
+          SELECT id, name, email, phone FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
+        `;
+        if (!guest.length) throw new ForbiddenException('Aktif misafir hesabı bulunamadı.');
+
+        const dates = parseStayDates(input.from, input.to);
+        const { villa, result } = await this.occupancy.checkAvailability(tx, input.villaId, dates, normalized);
+        if (villa.bookingMode !== 'REQUEST' && !result.reasons.includes('SYNC_UNHEALTHY')) {
+          throw new ConflictException('Bu villa doğrudan rezervasyona açıktır; rezervasyon talebi oluşturulamaz.');
+        }
+        const blocking = result.reasons.filter((r) => r !== 'SYNC_UNHEALTHY');
+        this.assertAvailable(blocking);
+
+        const quote = this.occupancy.quote(villa, dates);
+        const booking = await tx.booking.create({
+          data: {
+            villaId: input.villaId,
+            guestId: userId,
+            status: 'REQUESTED',
+            channel: 'WEBSITE',
+            checkIn: dates.checkIn,
+            checkOut: dates.checkOut,
+            ...normalized,
+            customerName: input.customerName?.trim() || guest[0].name,
+            customerEmail: input.customerEmail?.trim().toLowerCase() || guest[0].email,
+            customerPhone: input.customerPhone?.trim() || guest[0].phone || undefined,
+            ...quote,
+            priceSnapshot: this.snapshot(quote.priceSnapshot),
+            paymentStatus: 'NONE',
+            prepaymentAmount: 0,
+            idempotencyOwner: owner,
+            idempotencyKey: key,
+            requestHash,
+          },
+          select: BOOKING_SELECT,
+        });
+        await this.audit(tx, booking, userId, 'REQUEST_CREATED', undefined, {
+          status: booking.status,
+          checkIn: formatCalendarDate(booking.checkIn),
+          checkOut: formatCalendarDate(booking.checkOut),
+        });
+        return this.response(booking);
+      });
+    } catch (error) {
+      return this.recoverIdempotency(error, owner, key, requestHash);
+    }
+  }
+
+  /** Host/admin bir talebi kabul eder: müsaitlik villa kilidi altında tekrar kontrol edilir, uygunsa HOLD'a döner. */
+  async acceptRequest(id: string, actorId: string, hostId?: string) {
+    const target = await this.bookingTarget(id, hostId);
+    const payment = readPaymentSettings(await this.settings.get('payments'));
+    return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
+      const booking = await tx.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
+      if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
+      if (booking.status !== 'REQUESTED') throw new ConflictException('Bu talep artık kabul edilemez.');
+
+      const dates = { checkIn: booking.checkIn, checkOut: booking.checkOut, nights: this.nights(booking) };
+      const { villa, result } = await this.occupancy.checkAvailability(
+        tx,
+        booking.villaId,
+        dates,
+        { adults: booking.adults, children: booking.children, infants: booking.infants },
+        booking.id,
+      );
+      if (result.reasons.length) {
+        // Aynı geceler bu sırada satılmış: talep otomatik reddedilir, ikinci rezervasyon
+        // yaratılmaz. Hata fırlatmıyoruz — transaction içinde throw, az önce yazdığımız
+        // DECLINED güncellemesini de geri alır. Bunun yerine sonucu normal döndürüyoruz;
+        // admin ekranı booking.status === 'DECLINED' görüp nedeni cancellationNote'tan okur.
+        const declined = await tx.booking.update({
+          where: { id },
+          data: { status: 'DECLINED', cancelledAt: now, cancellationNote: 'Tarihler artık müsait değil.', version: { increment: 1 } },
+          select: BOOKING_SELECT,
+        });
+        await this.audit(tx, declined, actorId, 'REQUEST_DECLINED', { status: booking.status }, { status: declined.status, reasons: result.reasons }, 'Tarihler artık müsait değil.');
+        return this.response(declined, hostId);
+      }
+
+      const quote = this.occupancy.quote(villa, dates);
+      const updated = await tx.booking.update({
+        where: { id },
+        data: {
+          status: 'HOLD',
+          ...quote,
+          priceSnapshot: this.snapshot(quote.priceSnapshot, booking.priceSnapshot),
+          paymentStatus: 'PENDING',
+          prepaymentAmount: prepaymentFor(quote.totalAmount, payment, villa.commissionRate),
+          holdExpiresAt: new Date(now.getTime() + HOLD_MINUTES * 60_000),
+          version: { increment: 1 },
+        },
+        select: BOOKING_SELECT,
+      });
+      await this.audit(tx, updated, actorId, 'REQUEST_ACCEPTED', { status: booking.status }, {
+        status: updated.status,
+        holdExpiresAt: updated.holdExpiresAt?.toISOString(),
+      });
+      return this.response(updated, hostId);
+    });
+  }
+
+  /** Host/admin bir talebi doğrudan reddeder (stok çakışması değil, tercih). */
+  async declineRequest(id: string, actorId: string, note: string, hostId?: string) {
+    const target = await this.bookingTarget(id, hostId);
+    return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
+      const booking = await tx.booking.findUnique({ where: { id }, select: BOOKING_SELECT });
+      if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
+      if (booking.status !== 'REQUESTED') throw new ConflictException('Bu talep artık reddedilemez.');
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'DECLINED', cancelledAt: now, cancellationNote: note.trim(), version: { increment: 1 } },
+        select: BOOKING_SELECT,
+      });
+      await this.audit(tx, updated, actorId, 'REQUEST_DECLINED', { status: booking.status }, { status: updated.status }, note.trim());
+      return this.response(updated, hostId);
+    });
+  }
+
+  /** Misafir kendi bekleyen talebini geri çeker. */
+  async withdrawRequest(id: string, userId: string) {
+    const target = await this.prisma.booking.findFirst({ where: { id, guestId: userId }, select: { villaId: true } });
+    if (!target) throw new NotFoundException('Rezervasyon bulunamadı.');
+    return this.occupancy.withVillaLock(target.villaId, async (tx, now) => {
+      const booking = await tx.booking.findFirst({ where: { id, guestId: userId }, select: BOOKING_SELECT });
+      if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
+      if (booking.status === 'WITHDRAWN' || booking.status === 'DECLINED') return this.response(booking);
+      if (booking.status !== 'REQUESTED') throw new ForbiddenException('Yalnızca bekleyen bir talep geri çekilebilir.');
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'WITHDRAWN', cancelledAt: now, cancellationNote: 'Misafir talebi geri çekti.', version: { increment: 1 } },
+        select: BOOKING_SELECT,
+      });
+      await this.audit(tx, updated, userId, 'REQUEST_WITHDRAWN', { status: booking.status }, { status: updated.status }, 'Misafir talebi geri çekti.');
+      return this.response(updated);
+    });
   }
 
   async createConfirmed(input: AdminCreateBookingDto, actorId: string, idempotencyKey?: string) {
@@ -178,7 +335,7 @@ export class BookingsService {
             customerEmail: input.customerEmail?.trim().toLowerCase(),
             customerPhone: input.customerPhone?.trim(),
             ...quote,
-            priceSnapshot: quote.priceSnapshot as Prisma.InputJsonValue,
+            priceSnapshot: this.snapshot(quote.priceSnapshot),
             confirmedAt: now,
             idempotencyOwner: owner,
             idempotencyKey: key,
@@ -268,7 +425,7 @@ export class BookingsService {
           checkOut: dates.checkOut,
           ...normalized,
           ...quote,
-          priceSnapshot: quote.priceSnapshot as Prisma.InputJsonValue,
+          priceSnapshot: this.snapshot(quote.priceSnapshot, booking.priceSnapshot),
           prepaymentAmount,
           version: { increment: 1 },
         },
@@ -328,7 +485,215 @@ export class BookingsService {
       await this.audit(tx, updated, actorId, 'BOOKING_CANCELLED', { status: booking.status }, {
         status: updated.status,
       }, note.trim());
+      await tx.bookingServiceRequest.updateMany({
+        where: { bookingId: id, status: 'PENDING' },
+        data: { status: 'REJECTED', resolutionNote: 'Rezervasyon iptal edildi.', resolvedAt: now, resolvedBy: actorId, version: { increment: 1 } },
+      });
       return this.response(updated, hostId);
+    });
+  }
+
+  /**
+   * Onaylı rezervasyonu customer doğrudan değiştiremez/iptal edemez —
+   * BookingServiceRequest üzerinden talep açar, admin/host sonuçlandırır (bkz.
+   * resolveServiceRequest). Aynı rezervasyon+tür için tek aktif PENDING kaydı
+   * DB'deki kısmi unique index'le korunur (20260908_service_requests.sql).
+   */
+  async requestChange(
+    bookingId: string,
+    userId: string,
+    payload: { from: string; to: string; adults: number; children?: number; infants?: number },
+    customerNote: string | undefined,
+  ) {
+    return this.createServiceRequest(bookingId, userId, 'CHANGE', customerNote, {
+      from: payload.from,
+      to: payload.to,
+      adults: payload.adults,
+      children: payload.children ?? 0,
+      infants: payload.infants ?? 0,
+    }, 'guest');
+  }
+
+  async previewOwnChange(
+    bookingId: string,
+    userId: string,
+    payload: { from: string; to: string; adults: number; children?: number; infants?: number },
+  ) {
+    const target = await this.prisma.booking.findFirst({ where: { id: bookingId, guestId: userId }, select: { villaId: true, status: true } });
+    if (!target) throw new NotFoundException('Rezervasyon bulunamadı.');
+    if (target.status !== 'CONFIRMED') throw new ConflictException('Yalnızca onaylanmış rezervasyonlar için değişiklik önizlenebilir.');
+    const dates = parseStayDates(payload.from, payload.to);
+    const guests = this.normalizeStay(payload);
+    const payment = readPaymentSettings(await this.settings.get('payments'));
+    return this.occupancy.withVillaLock(target.villaId, async (tx) => {
+      const { villa, result } = await this.occupancy.checkAvailability(tx, target.villaId, dates, guests, bookingId);
+      const quote = this.occupancy.quote(villa, dates);
+      return { ...result, from: payload.from, to: payload.to, quote: { ...quote, prepaymentAmount: prepaymentFor(quote.totalAmount, payment, villa.commissionRate) } };
+    });
+  }
+
+  /** Misafir kendi onaylı rezervasyonu için iptal talebi bırakır. */
+  async requestCancellationByGuest(bookingId: string, userId: string, note: string) {
+    return this.createServiceRequest(bookingId, userId, 'CANCELLATION', note, undefined, 'guest');
+  }
+
+  /**
+   * Ev sahibi kendi villasının onaylı rezervasyonu için iptal talebi bırakır.
+   * Kapora platformun parası olduğu için owner rezervasyonu doğrudan iptal edemez
+   * (bkz. cancel()) — talep admin'e gider (bkz. resolveServiceRequest).
+   */
+  async requestCancellationByHost(bookingId: string, hostId: string, note: string) {
+    return this.createServiceRequest(bookingId, hostId, 'CANCELLATION', note, undefined, 'host');
+  }
+
+  private async createServiceRequest(
+    bookingId: string,
+    requestedBy: string,
+    type: 'CHANGE' | 'CANCELLATION',
+    customerNote: string | undefined,
+    payload: { from: string; to: string; adults: number; children: number; infants: number } | undefined,
+    scope: 'guest' | 'host',
+  ) {
+    const target = await this.prisma.booking.findFirst({
+      where: { id: bookingId, ...(scope === 'guest' ? { guestId: requestedBy } : { villa: { hostId: requestedBy } }) },
+      select: { villaId: true },
+    });
+    if (!target) throw new NotFoundException('Rezervasyon bulunamadı.');
+    try {
+      return await this.occupancy.withVillaLock(target.villaId, async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Booking" WHERE id = ${bookingId} FOR UPDATE`;
+        const booking = await tx.booking.findFirst({
+          where: { id: bookingId, ...(scope === 'guest' ? { guestId: requestedBy } : { villa: { hostId: requestedBy } }) },
+          select: { id: true, villaId: true, status: true },
+        });
+        if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
+        if (booking.status !== 'CONFIRMED') throw new ConflictException('Yalnızca onaylanmış rezervasyonlar için talep bırakılabilir.');
+
+        let requestPayload: Prisma.InputJsonValue | undefined;
+        if (type === 'CHANGE' && payload) {
+          const dates = parseStayDates(payload.from, payload.to);
+          const { villa, result } = await this.occupancy.checkAvailability(tx, booking.villaId, dates, payload, booking.id);
+          this.assertAvailable(result.reasons);
+          const quote = this.occupancy.quote(villa, dates);
+          requestPayload = { ...payload, preview: { totalAmount: quote.totalAmount, currency: quote.currency } };
+        }
+
+        const request = await tx.bookingServiceRequest.create({
+          data: { bookingId, requestedBy, type, payload: requestPayload, customerNote: customerNote?.trim() },
+        });
+        await this.audit(tx, booking, requestedBy, type === 'CHANGE' ? 'CHANGE_REQUESTED' : 'CANCELLATION_REQUESTED', undefined, type === 'CHANGE' ? requestPayload as Prisma.InputJsonObject : undefined, customerNote?.trim());
+        return request;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(
+          type === 'CHANGE'
+            ? 'Bu rezervasyon için zaten bekleyen bir değişiklik talebi var.'
+            : 'Bu rezervasyon için zaten bekleyen bir iptal talebi var.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  /** Talebi açan taraf (misafir veya host) bekleyen talebini geri çeker. */
+  async withdrawServiceRequest(requestId: string, userId: string) {
+    const target = await this.prisma.bookingServiceRequest.findFirst({ where: { id: requestId, requestedBy: userId }, select: { booking: { select: { villaId: true } } } });
+    if (!target) throw new NotFoundException('Talep bulunamadı.');
+    return this.occupancy.withVillaLock(target.booking.villaId, async (tx, now) => {
+      const request = await tx.bookingServiceRequest.findFirst({ where: { id: requestId, requestedBy: userId } });
+      if (!request) throw new NotFoundException('Talep bulunamadı.');
+      if (request.status !== 'PENDING') return request;
+      const updated = await tx.bookingServiceRequest.update({ where: { id: requestId }, data: { status: 'WITHDRAWN', resolvedAt: now, version: { increment: 1 } } });
+      await tx.calendarAudit.create({ data: { villaId: target.booking.villaId, actorId: userId, entityType: 'BOOKING', entityId: request.bookingId, action: 'SERVICE_REQUEST_WITHDRAWN' } });
+      return updated;
+    });
+  }
+
+  /**
+   * Admin (CANCELLATION için tek yetkili) veya host (yalnızca CHANGE) bir talebi
+   * sonuçlandırır. Talep satırı, rezervasyon ve villa aynı transaction içinde
+   * kilitlenir; rezervasyon değişimiyle talep kararı birbirinden ayrı kalamaz.
+   */
+  async resolveServiceRequest(
+    requestId: string,
+    input: ResolveServiceRequestDto,
+    actorId: string,
+    hostId?: string,
+  ) {
+    const target = await this.prisma.bookingServiceRequest.findUnique({
+      where: { id: requestId },
+      include: { booking: { select: { villaId: true, villa: { select: { hostId: true } } } } },
+    });
+    if (!target || (hostId && target.booking.villa.hostId !== hostId)) throw new NotFoundException('Talep bulunamadı.');
+    const payment = readPaymentSettings(await this.settings.get('payments'));
+    return this.occupancy.withVillaLock(target.booking.villaId, async (tx, now) => {
+      await tx.$queryRaw`SELECT id FROM "BookingServiceRequest" WHERE id = ${requestId} FOR UPDATE`;
+      const request = await tx.bookingServiceRequest.findUnique({ where: { id: requestId }, include: { booking: { select: BOOKING_SELECT } } });
+      if (!request) throw new NotFoundException('Talep bulunamadı.');
+      if (hostId && !(await tx.villa.count({ where: { id: request.booking.villaId, hostId } }))) throw new NotFoundException('Talep bulunamadı.');
+      if (request.status !== 'PENDING') throw new ConflictException('Bu talep zaten sonuçlandırılmış.');
+      if (request.type === 'CANCELLATION' && hostId) throw new ForbiddenException('İptal talebini yalnızca yönetici sonuçlandırabilir.');
+
+      if (input.decision === 'REJECTED') {
+        const updated = await tx.bookingServiceRequest.update({ where: { id: requestId }, data: { status: 'REJECTED', resolutionNote: input.resolutionNote?.trim(), resolvedAt: now, resolvedBy: actorId, version: { increment: 1 } } });
+        await this.audit(tx, request.booking, actorId, request.type === 'CHANGE' ? 'CHANGE_REQUEST_REJECTED' : 'CANCELLATION_REQUEST_REJECTED', undefined, undefined, input.resolutionNote?.trim());
+        return updated;
+      }
+
+      if (request.booking.status !== 'CONFIRMED') throw new ConflictException('Rezervasyon artık bu taleple değiştirilemez.');
+      if (request.type === 'CANCELLATION') {
+        const refundAmount = input.refundAmount ?? (request.booking.paymentStatus === 'PAID' ? request.booking.prepaymentAmount : 0);
+        if (refundAmount > request.booking.prepaymentAmount) throw new BadRequestException('İade tutarı alınan kaporayı aşamaz.');
+        const cancelled = await tx.booking.update({ where: { id: request.bookingId }, data: { status: 'CANCELLED', cancelledAt: now, cancellationNote: input.resolutionNote?.trim() || 'İptal talebi onaylandı.', version: { increment: 1 } }, select: BOOKING_SELECT });
+        await this.audit(tx, cancelled, actorId, 'BOOKING_CANCELLED', { status: 'CONFIRMED' }, { status: 'CANCELLED' }, cancelled.cancellationNote ?? undefined);
+        await tx.bookingServiceRequest.updateMany({ where: { bookingId: request.bookingId, status: 'PENDING', id: { not: requestId } }, data: { status: 'REJECTED', resolutionNote: 'Rezervasyon iptal edildi.', resolvedAt: now, resolvedBy: actorId, version: { increment: 1 } } });
+        return tx.bookingServiceRequest.update({
+          where: { id: requestId },
+          data: { status: 'APPROVED', resolutionNote: input.resolutionNote?.trim(), resolvedAt: now, resolvedBy: actorId, refundStatus: refundAmount > 0 ? input.refundStatus ?? 'PENDING' : 'NONE', refundAmount, refundNote: input.refundNote?.trim(), refundUpdatedAt: refundAmount > 0 ? now : null, version: { increment: 1 } },
+        });
+      }
+
+      const payload = request.payload as { from: string; to: string; adults: number; children: number; infants: number };
+      const dates = parseStayDates(payload.from, payload.to);
+      const { villa, result } = await this.occupancy.checkAvailability(tx, request.booking.villaId, dates, payload, request.bookingId);
+      this.assertAvailable(result.reasons);
+      const quote = this.occupancy.quote(villa, dates);
+      const changed = await tx.booking.update({
+        where: { id: request.bookingId },
+        data: {
+          checkIn: dates.checkIn,
+          checkOut: dates.checkOut,
+          adults: payload.adults,
+          children: payload.children,
+          infants: payload.infants,
+          ...quote,
+          priceSnapshot: this.snapshot(quote.priceSnapshot, request.booking.priceSnapshot),
+          // PAID gerçek tahsilatı ifade eder; yeni fiyat yüzünden alınmamış bir
+          // kaporayı ödenmiş göstermemek için yalnızca açık ödeme tutarı yenilenir.
+          prepaymentAmount:
+            request.booking.paymentStatus === 'PENDING' || request.booking.paymentStatus === 'DECLARED'
+              ? prepaymentFor(quote.totalAmount, payment, villa.commissionRate)
+              : request.booking.prepaymentAmount,
+          version: { increment: 1 },
+        },
+        select: BOOKING_SELECT,
+      });
+      await this.audit(tx, changed, actorId, 'BOOKING_CHANGED', { checkIn: formatCalendarDate(request.booking.checkIn), checkOut: formatCalendarDate(request.booking.checkOut), totalAmount: request.booking.totalAmount }, { checkIn: formatCalendarDate(changed.checkIn), checkOut: formatCalendarDate(changed.checkOut), totalAmount: changed.totalAmount });
+      return tx.bookingServiceRequest.update({ where: { id: requestId }, data: { status: 'APPROVED', resolutionNote: input.resolutionNote?.trim(), resolvedAt: now, resolvedBy: actorId, version: { increment: 1 } } });
+    });
+  }
+
+  async updateServiceRequestRefund(requestId: string, input: UpdateRefundDto, actorId: string) {
+    const target = await this.prisma.bookingServiceRequest.findUnique({ where: { id: requestId }, select: { booking: { select: { villaId: true } } } });
+    if (!target) throw new NotFoundException('Talep bulunamadı.');
+    return this.occupancy.withVillaLock(target.booking.villaId, async (tx, now) => {
+      const request = await tx.bookingServiceRequest.findUnique({ where: { id: requestId }, include: { booking: { select: { prepaymentAmount: true } } } });
+      if (!request || request.type !== 'CANCELLATION' || request.status !== 'APPROVED') throw new ConflictException('Yalnızca onaylanmış iptal talebinin iadesi güncellenebilir.');
+      if (input.amount > request.booking.prepaymentAmount) throw new BadRequestException('İade tutarı alınan kaporayı aşamaz.');
+      const updated = await tx.bookingServiceRequest.update({ where: { id: requestId }, data: { refundStatus: input.status, refundAmount: input.amount, refundNote: input.note?.trim(), refundUpdatedAt: now, version: { increment: 1 } } });
+      await tx.calendarAudit.create({ data: { villaId: target.booking.villaId, actorId, entityType: 'BOOKING', entityId: request.bookingId, action: 'REFUND_UPDATED', reason: input.note?.trim(), after: { status: input.status, amount: input.amount } } });
+      return updated;
     });
   }
 
@@ -410,7 +775,8 @@ export class BookingsService {
   async getOwn(id: string, userId: string) {
     const booking = await this.prisma.booking.findFirst({ where: { id, guestId: userId }, select: BOOKING_SELECT });
     if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
-    return this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments')));
+    const serviceRequests = await this.prisma.bookingServiceRequest.findMany({ where: { bookingId: id }, orderBy: { createdAt: 'desc' } });
+    return { ...this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments'))), serviceRequests };
   }
 
   async listOwn(userId: string, input: OwnBookingListDto) {
@@ -420,13 +786,13 @@ export class BookingsService {
     const today = parseCalendarDate(this.todayInIstanbul());
     const scopedWhere: Prisma.BookingWhereInput =
       scope === 'action-required'
-        ? { status: 'HOLD', paymentStatus: 'PENDING', holdExpiresAt: { gt: new Date() } }
+        ? { OR: [{ status: 'HOLD', paymentStatus: 'PENDING', holdExpiresAt: { gt: new Date() } }, { status: 'REQUESTED' }] }
         : scope === 'upcoming'
           ? { status: 'CONFIRMED', checkOut: { gt: today } }
           : scope === 'past'
             ? { status: 'CONFIRMED', checkOut: { lte: today } }
             : scope === 'cancelled'
-              ? { status: { in: ['CANCELLED', 'EXPIRED'] } }
+              ? { status: { in: ['CANCELLED', 'EXPIRED', 'DECLINED', 'WITHDRAWN'] } }
               : {};
     const where: Prisma.BookingWhereInput = { guestId: userId, ...scopedWhere };
     const [items, total] = await this.prisma.$transaction([
@@ -483,7 +849,15 @@ export class BookingsService {
           actor: audit.actor?.role === 'GUEST' ? { ...audit.actor, name: 'Misafir' } : audit.actor,
         }))
       : audits;
-    return { ...this.response(booking, hostId), audits: safeAudits };
+    const serviceRequests = await this.prisma.bookingServiceRequest.findMany({
+      where: { bookingId: id },
+      include: { requester: { select: { name: true, role: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const safeServiceRequests = !revealGuestContact(hostId, booking.status)
+      ? serviceRequests.map((request) => ({ ...request, requester: request.requester.role === 'GUEST' ? { ...request.requester, name: 'Misafir' } : request.requester }))
+      : serviceRequests;
+    return { ...this.response(booking, hostId), audits: safeAudits, serviceRequests: safeServiceRequests };
   }
 
   async listAdmin(input: {
@@ -540,6 +914,20 @@ export class BookingsService {
 
   private normalizeStay(input: { adults: number; children?: number; infants?: number }) {
     return { adults: input.adults, children: input.children ?? 0, infants: input.infants ?? 0 };
+  }
+
+  private snapshot(priceSnapshot: object, existing?: Prisma.JsonValue) {
+    const previous = existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? (existing as Prisma.JsonObject).cancellationPolicy
+      : undefined;
+    return {
+      ...priceSnapshot,
+      cancellationPolicy: previous ?? {
+        version: 'manual-review-v1',
+        text: 'İptal ve kapora iadesi yönetim incelemesine tabidir.',
+        refundMethod: 'MANUAL_REVIEW',
+      },
+    } as Prisma.InputJsonValue;
   }
 
   private idempotencyKey(value?: string) {

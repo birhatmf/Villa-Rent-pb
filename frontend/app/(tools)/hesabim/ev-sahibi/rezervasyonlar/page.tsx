@@ -6,16 +6,22 @@ import { formatPrice } from '@/lib/api';
 import { hostBookingApi, type Booking } from '@/lib/bookingApi';
 
 const STATUS_LABEL: Record<Booking['status'], string> = {
+  REQUESTED: 'Yeni talep',
   HOLD: 'Bekletme',
   CONFIRMED: 'Onaylı',
   EXPIRED: 'Süresi doldu',
   CANCELLED: 'İptal edildi',
+  DECLINED: 'Talep reddedildi',
+  WITHDRAWN: 'Geri çekildi',
 };
 const STATUS_CLS: Record<Booking['status'], string> = {
+  REQUESTED: 'bg-gold/20 text-ink',
   HOLD: 'bg-gold/20 text-ink',
   CONFIRMED: 'bg-olive/15 text-olive',
   EXPIRED: 'bg-sand text-muted',
   CANCELLED: 'bg-sand text-muted',
+  DECLINED: 'bg-red-50 text-red-700',
+  WITHDRAWN: 'bg-sand text-muted',
 };
 const PAYMENT_LABEL: Record<Booking['paymentStatus'], string> = {
   NONE: '',
@@ -29,6 +35,7 @@ const dateLabel = (value: string) =>
 
 const STATUS_FILTERS = [
   { value: '', label: 'Tümü' },
+  { value: 'REQUESTED', label: 'Yeni talepler' },
   { value: 'HOLD', label: 'Bekleyen' },
   { value: 'CONFIRMED', label: 'Onaylı' },
   { value: 'CANCELLED', label: 'İptal edilen' },

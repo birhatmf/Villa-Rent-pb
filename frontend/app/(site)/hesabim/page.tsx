@@ -57,6 +57,9 @@ export default function HesabimPage() {
         <Link href="/hesabim/seyahatlerim" className="text-[0.88rem] text-ink underline underline-offset-4 hover:text-gold">
           Tüm seyahatlerim
         </Link>
+        <Link href="/hesabim/yorumlarim" className="text-[0.88rem] text-ink underline underline-offset-4 hover:text-gold">
+          Yorumlarım
+        </Link>
       </div>
 
       {user.role === 'HOST' || user.role === 'ADMIN' ? (
@@ -155,6 +158,12 @@ function BookingsSection() {
           const state =
             booking.status === 'CONFIRMED'
               ? 'Onaylandı'
+              : booking.status === 'REQUESTED'
+                ? 'Talep değerlendiriliyor'
+                : booking.status === 'DECLINED'
+                  ? 'Talep reddedildi'
+                  : booking.status === 'WITHDRAWN'
+                    ? 'Talep geri çekildi'
               : booking.status === 'CANCELLED'
                 ? 'İptal edildi'
                 : booking.status === 'EXPIRED'

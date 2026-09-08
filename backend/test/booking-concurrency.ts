@@ -20,11 +20,18 @@ const calendar = new CalendarService(prisma);
 const villas = new VillasService(prisma, occupancy, settings);
 const ownerPrefix = `booking-test-${Date.now()}`;
 let guestId: string | undefined;
+let testVillaId: string | undefined;
+let originalBookingMode: 'INSTANT' | 'REQUEST' | undefined;
 
 async function main() {
   await prisma.$connect();
-  const villa = await prisma.villa.findFirst({ where: { status: 'PUBLISHED' }, select: { id: true } });
-  assert.ok(villa, 'Seed edilmiş yayınlanmış villa bulunmalı.');
+  const villa = await prisma.villa.findFirst({
+    where: { status: 'PUBLISHED', bookingMode: 'INSTANT' },
+    select: { id: true, bookingMode: true },
+  });
+  assert.ok(villa, 'Seed edilmiş anlık rezervasyona açık bir villa bulunmalı.');
+  testVillaId = villa.id;
+  originalBookingMode = villa.bookingMode;
   const guest = await prisma.user.create({
     data: {
       email: `${ownerPrefix}@example.test`,
@@ -49,6 +56,38 @@ async function main() {
   assert.equal(rejected.length, 49);
   assert.ok(rejected.every((result) => result.reason instanceof ConflictException));
   await prisma.booking.deleteMany({ where: { guestId: guest.id } });
+
+  await prisma.villa.update({ where: { id: villa.id }, data: { bookingMode: 'REQUEST' } });
+  const requests = await Promise.all([
+    bookings.createRequest({ villaId: villa.id, from: '2037-01-10', to: '2037-01-15', adults: 2 }, guest.id, `${ownerPrefix}-request-a`),
+    bookings.createRequest({ villaId: villa.id, from: '2037-01-10', to: '2037-01-15', adults: 2 }, guest.id, `${ownerPrefix}-request-b`),
+  ]);
+  const accepted = await Promise.all(requests.map((request) => bookings.acceptRequest(request.id, guest.id)));
+  assert.deepEqual(accepted.map((booking) => booking.status).sort(), ['DECLINED', 'HOLD']);
+  await prisma.booking.deleteMany({ where: { id: { in: requests.map((request) => request.id) } } });
+  await prisma.villa.update({ where: { id: villa.id }, data: { bookingMode: originalBookingMode } });
+
+  const serviceBooking = await bookings.createConfirmed(
+    { villaId: villa.id, guestId: guest.id, from: '2037-02-10', to: '2037-02-15', adults: 2 },
+    guest.id,
+    `${ownerPrefix}-service-booking`,
+  );
+  const duplicateChanges = await Promise.allSettled([
+    bookings.requestChange(serviceBooking.id, guest.id, { from: '2037-02-11', to: '2037-02-16', adults: 2 }, 'Bir gün kaydırmak istiyorum.'),
+    bookings.requestChange(serviceBooking.id, guest.id, { from: '2037-02-12', to: '2037-02-17', adults: 2 }, 'İki gün kaydırmak istiyorum.'),
+  ]);
+  assert.equal(duplicateChanges.filter((result) => result.status === 'fulfilled').length, 1);
+  const changeRequest = duplicateChanges.find((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')!.value;
+  await bookings.resolveServiceRequest(changeRequest.id, { decision: 'APPROVED', resolutionNote: 'Uygun.' }, guest.id);
+  assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id: serviceBooking.id } })).checkIn.toISOString().slice(0, 10), (changeRequest.payload as any).from);
+
+  await prisma.booking.update({ where: { id: serviceBooking.id }, data: { paymentStatus: 'PAID', prepaymentAmount: 100 } });
+  const cancellation = await bookings.requestCancellationByGuest(serviceBooking.id, guest.id, 'Planım değişti.');
+  const cancelledRequest = await bookings.resolveServiceRequest(cancellation.id, { decision: 'APPROVED', refundAmount: 100, refundStatus: 'PENDING' }, guest.id);
+  assert.equal(cancelledRequest.refundStatus, 'PENDING');
+  assert.equal((await bookings.updateServiceRequestRefund(cancellation.id, { status: 'COMPLETED', amount: 100, note: 'Banka iadesi.' }, guest.id)).refundStatus, 'COMPLETED');
+  assert.equal((await prisma.booking.findUniqueOrThrow({ where: { id: serviceBooking.id } })).status, 'CANCELLED');
+  await prisma.booking.delete({ where: { id: serviceBooking.id } });
 
   const idempotencyKey = `${ownerPrefix}-same-request`;
   const repeated = await Promise.all(
@@ -223,7 +262,7 @@ async function main() {
   assert.ok(history.some((entry) => entry.action === 'BLOCK_CREATED'));
   assert.ok(history.some((entry) => entry.action === 'BLOCK_RELEASED'));
 
-  console.log('booking-concurrency: yarış, sürüm, audit, takvim, blok, limit, süre aşımı ve DB kısıtı geçti');
+  console.log('booking-concurrency: yarış, talep kabulü, servis talebi, iade, sürüm, audit, takvim, blok, limit, süre aşımı ve DB kısıtı geçti');
 }
 
 main()
@@ -233,6 +272,7 @@ main()
     // koşuda tam da bu yüzden kalıcı olarak DB'de kaldı ve sonraki koşuyu
     // DATES_UNAVAILABLE ile çakıştırdı.
     if (guestId) await prisma.booking.deleteMany({ where: { idempotencyKey: { startsWith: ownerPrefix } } });
+    if (testVillaId && originalBookingMode) await prisma.villa.update({ where: { id: testVillaId }, data: { bookingMode: originalBookingMode } });
     await prisma.villaBlockedDate.deleteMany({ where: { note: ownerPrefix } });
     await prisma.user.deleteMany({ where: { email: { startsWith: ownerPrefix } } });
     await prisma.$disconnect();

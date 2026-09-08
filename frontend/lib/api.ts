@@ -32,6 +32,28 @@ export async function getVillaBySlug(slug: string): Promise<VillaPublicDetail | 
   return res.json();
 }
 
+export type PublicReviewPage = {
+  items: Array<{
+    rating: number;
+    body: string;
+    guestName: string;
+    verifiedStay: true;
+    createdAt: string;
+    villa: { title: string; slug: string };
+    response: { body: string; createdAt: string; updatedAt: string } | null;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+  distribution: Array<{ rating: number; count: number }>;
+};
+
+export async function getVillaReviews(slug: string): Promise<PublicReviewPage> {
+  const res = await fetch(`${API}/villas/${encodeURIComponent(slug)}/reviews?pageSize=6`, { cache: 'no-store' });
+  if (!res.ok) return { items: [], total: 0, page: 1, pageSize: 6, distribution: [] };
+  return res.json();
+}
+
 export type VillaListParams = {
   q?: string;
   bolge?: string;

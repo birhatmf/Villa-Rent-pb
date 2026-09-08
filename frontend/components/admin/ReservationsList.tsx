@@ -8,16 +8,22 @@ import { createVillaApi } from '@/lib/villaApi';
 
 const INPUT = 'rounded-lg border border-line bg-surface px-3 py-2.5 text-[0.82rem] text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-olive-soft focus-visible:ring-2 focus-visible:ring-olive/15';
 const STATUS_LABEL: Record<Booking['status'], string> = {
+  REQUESTED: 'Talep bekliyor',
   HOLD: 'Onay bekliyor',
   CONFIRMED: 'Onaylandı',
   EXPIRED: 'Süresi doldu',
   CANCELLED: 'İptal edildi',
+  DECLINED: 'Talep reddedildi',
+  WITHDRAWN: 'Geri çekildi',
 };
 const STATUS_STYLE: Record<Booking['status'], string> = {
+  REQUESTED: 'border-gold/25 bg-gold/10 text-gold',
   HOLD: 'border-gold/25 bg-gold/10 text-gold',
   CONFIRMED: 'border-olive/20 bg-olive/10 text-olive',
   EXPIRED: 'border-line bg-sand/60 text-muted',
   CANCELLED: 'border-red-200 bg-red-50 text-red-700',
+  DECLINED: 'border-red-200 bg-red-50 text-red-700',
+  WITHDRAWN: 'border-line bg-sand/60 text-muted',
 };
 const PAYMENT_LABEL: Record<Booking['paymentStatus'], string> = {
   NONE: 'Ödeme gerekmiyor',
@@ -88,10 +94,13 @@ export default function ReservationsList() {
         <div className="flex flex-wrap gap-2">
           {([
             ['', 'Tüm rezervasyonlar'],
+            ['REQUESTED', 'Yeni talepler'],
             ['HOLD', 'Onay bekleyen'],
             ['CONFIRMED', 'Onaylanan'],
             ['CANCELLED', 'İptal edilen'],
             ['EXPIRED', 'Süresi dolan'],
+            ['DECLINED', 'Reddedilen'],
+            ['WITHDRAWN', 'Geri çekilen'],
           ] as const).map(([value, label]) => (
             <button key={value} onClick={() => set('status', value)} className={`rounded-full px-3.5 py-1.5 text-[0.76rem] transition-colors ${filters.status === value ? 'bg-ink text-canvas' : 'border border-line bg-surface text-muted hover:border-ink hover:text-ink'}`}>
               {label}

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/http';
 import {
   bookingApi,
+  hostCalendarApi,
   type BlockKind,
   type CalendarAudit,
   type CalendarData,
@@ -76,7 +77,7 @@ const emptyBooking = (): BookingForm => ({
   adults: 2, children: 0, infants: 0,
 });
 
-export default function BookingCalendar() {
+export default function BookingCalendar({ scope = 'admin' }: { scope?: 'admin' | 'host' }) {
   const today = new Date();
   const [month, setMonth] = useState(() => new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)));
   const [data, setData] = useState<CalendarData | null>(null);
@@ -103,7 +104,9 @@ export default function BookingCalendar() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [calendar, history] = await Promise.all([bookingApi.calendar(from, to), bookingApi.audit(villaId || undefined)]);
+      const [calendar, history] = scope === 'admin'
+        ? await Promise.all([bookingApi.calendar(from, to), bookingApi.audit(villaId || undefined)])
+        : await Promise.all([hostCalendarApi.range(from, to), hostCalendarApi.audit(villaId || undefined)]);
       setData(calendar);
       setAudits(history);
       setSelected((current) => current ? calendar.events.find((event) => event.id === current.id) ?? null : null);
@@ -111,7 +114,7 @@ export default function BookingCalendar() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Takvim yüklenemedi.');
     }
-  }, [from, to, villaId]);
+  }, [from, to, villaId, scope]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -263,7 +266,24 @@ export default function BookingCalendar() {
 
           <aside className="space-y-5">
             {selected ? (
-              <EventPanel event={selected} relatedEvents={relatedEvents} onSelect={chooseEvent} busy={busy} onClose={() => { setSelected(null); setRelatedEvents([]); }} onRelease={() => act(() => bookingApi.removeBlock(selected.villaId, selected.id, selected.version), () => { setSelected(null); setRelatedEvents([]); })} />
+              <EventPanel
+                event={selected}
+                relatedEvents={relatedEvents}
+                onSelect={chooseEvent}
+                busy={busy}
+                scope={scope}
+                onClose={() => { setSelected(null); setRelatedEvents([]); }}
+                onRelease={scope === 'admin' ? () => act(() => bookingApi.removeBlock(selected.villaId, selected.id, selected.version), () => { setSelected(null); setRelatedEvents([]); }) : undefined}
+              />
+            ) : scope === 'host' ? (
+              // Ev sahibi bu ekrandan rezervasyon/blok oluşturamaz — kendi villasının
+              // takvim yönetimi zaten VillaForm'un "Takvim ve Dış Kanallar" sekmesinde var.
+              // Bu ekran çoklu villa görünümü içindir, işlem yapma yeri değil.
+              <section className="rounded-xl border border-dashed border-line bg-surface p-5 text-center">
+                <p className="text-[0.85rem] text-muted">
+                  Bir güne veya rezervasyona tıklayın. Tarih kapatma/açma villa düzenleme ekranındaki Takvim sekmesinden yapılır.
+                </p>
+              </section>
             ) : (
               <section className="rounded-xl border border-line bg-surface p-5">
                 <div className="flex rounded-lg bg-sand p-1">
@@ -325,7 +345,8 @@ function BlockCreateForm({ form, setForm, villas, busy, onSubmit }: { form: { vi
   </div>;
 }
 
-function EventPanel({ event, relatedEvents, onSelect, busy, onClose, onRelease }: { event: CalendarEvent; relatedEvents: CalendarEvent[]; onSelect: (event: CalendarEvent, related?: CalendarEvent[]) => void; busy: boolean; onClose: () => void; onRelease: () => void }) {
+function EventPanel({ event, relatedEvents, onSelect, busy, scope, onClose, onRelease }: { event: CalendarEvent; relatedEvents: CalendarEvent[]; onSelect: (event: CalendarEvent, related?: CalendarEvent[]) => void; busy: boolean; scope: 'admin' | 'host'; onClose: () => void; onRelease?: () => void }) {
+  const detailHref = scope === 'admin' ? `/admin/rezervasyonlar/${event.id}` : `/hesabim/ev-sahibi/rezervasyonlar/${event.id}`;
   return <section className="rounded-xl border border-line bg-surface p-5">
     <div className="flex items-start justify-between gap-3"><div><p className="eyebrow text-gold">{EVENT_LABEL[event.kind]}</p><h2 className="mt-2 font-display text-xl font-light text-ink">{event.title}</h2></div><button onClick={onClose} aria-label="Kapat" className="text-xl text-muted hover:text-ink">×</button></div>
     <p className="mt-2 text-[0.8rem] text-muted">{dateLabel(event.startDate)} – {dateLabel(event.endDate)}</p>
@@ -333,7 +354,7 @@ function EventPanel({ event, relatedEvents, onSelect, busy, onClose, onRelease }
     {event.source === 'BOOKING' ? <div className="mt-5 space-y-3">
       {(event.email || event.phone) && <p className="rounded-lg bg-sand/60 p-3 text-[0.78rem] leading-relaxed text-muted">{event.email}<br />{event.phone}</p>}
       {event.paymentStatus && event.paymentStatus !== 'NONE' && <p className={`rounded-lg p-3 text-[0.78rem] leading-relaxed ${event.paymentStatus === 'DECLARED' ? 'bg-gold/20 text-ink' : event.paymentStatus === 'PAID' ? 'bg-olive/15 text-olive' : 'bg-sand/60 text-muted'}`}>{PAYMENT_LABEL[event.paymentStatus]}{event.prepaymentAmount ? ` · ${event.prepaymentAmount.toLocaleString('tr-TR')} ${event.currency ?? ''}` : ''}<br /><span className="text-muted">Havale açıklaması: MV-{event.id.slice(-6).toUpperCase()}</span></p>}
-      <Link href={`/admin/rezervasyonlar/${event.id}`} className="block w-full rounded-full bg-ink px-4 py-2.5 text-center text-[0.82rem] text-canvas transition-colors hover:bg-olive">Detay ve onay ekranını aç</Link>
+      <Link href={detailHref} className="block w-full rounded-full bg-ink px-4 py-2.5 text-center text-[0.82rem] text-canvas transition-colors hover:bg-olive">{scope === 'admin' ? 'Detay ve onay ekranını aç' : 'Detay ekranını aç'}</Link>
     </div> : <div className="mt-5">
       {event.note && <p className="rounded-lg bg-sand/60 p-3 text-[0.8rem] text-muted">{event.note}</p>}
       {event.kind === 'ICAL' ? (
@@ -342,7 +363,11 @@ function EventPanel({ event, relatedEvents, onSelect, busy, onClose, onRelease }
           {event.lastSyncAt && <span className="mt-1 block">Son başarı: {new Date(event.lastSyncAt).toLocaleString('tr-TR')}</span>}
           {event.syncError && <span className="mt-1 block text-red-700">Hata: {event.syncError}</span>}
         </div>
-      ) : <button disabled={busy} onClick={onRelease} className="mt-4 w-full rounded-full border border-ink py-2.5 text-[0.82rem] text-ink hover:bg-ink hover:text-canvas disabled:opacity-40">Bu nedeni kaldır</button>}
+      ) : onRelease ? (
+        <button disabled={busy} onClick={onRelease} className="mt-4 w-full rounded-full border border-ink py-2.5 text-[0.82rem] text-ink hover:bg-ink hover:text-canvas disabled:opacity-40">Bu nedeni kaldır</button>
+      ) : (
+        <p className="mt-4 text-[0.78rem] text-muted">Bu kapatmayı kaldırmak için villa düzenleme ekranındaki Takvim sekmesini kullanın.</p>
+      )}
       <p className="mt-2 text-[0.7rem] leading-relaxed text-muted">Aynı gün başka bir nedenle kapalıysa tarih kapalı kalır.</p>
     </div>}
   </section>;

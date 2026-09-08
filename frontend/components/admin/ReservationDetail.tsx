@@ -3,16 +3,19 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { formatPrice } from '@/lib/api';
-import { bookingApi, hostBookingApi, type Booking, type BookingDetail, type CalendarAudit } from '@/lib/bookingApi';
+import { bookingApi, hostBookingApi, type Booking, type BookingApiClient, type BookingDetail, type CalendarAudit, type ServiceRequest } from '@/lib/bookingApi';
 import { ApiError } from '@/lib/http';
 
 const INPUT = 'w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[0.86rem] text-ink outline-none focus:border-olive-soft focus-visible:ring-2 focus-visible:ring-olive/15';
-const STATUS_LABEL: Record<Booking['status'], string> = { HOLD: 'Onay bekliyor', CONFIRMED: 'Onaylandı', EXPIRED: 'Süresi doldu', CANCELLED: 'İptal edildi' };
+const STATUS_LABEL: Record<Booking['status'], string> = { REQUESTED: 'Talep bekliyor', HOLD: 'Ödeme bekliyor', CONFIRMED: 'Onaylandı', EXPIRED: 'Süresi doldu', CANCELLED: 'İptal edildi', DECLINED: 'Talep reddedildi', WITHDRAWN: 'Talep geri çekildi' };
 const STATUS_STYLE: Record<Booking['status'], string> = {
+  REQUESTED: 'border-gold/30 bg-gold/10 text-gold',
   HOLD: 'border-gold/30 bg-gold/10 text-gold',
   CONFIRMED: 'border-olive/25 bg-olive/10 text-olive',
   EXPIRED: 'border-line bg-sand text-muted',
   CANCELLED: 'border-red-200 bg-red-50 text-red-700',
+  DECLINED: 'border-red-200 bg-red-50 text-red-700',
+  WITHDRAWN: 'border-line bg-sand text-muted',
 };
 const PAYMENT_LABEL: Record<Booking['paymentStatus'], string> = { NONE: 'Ödeme gerekmiyor', PENDING: 'Kapora bekleniyor', DECLARED: 'Havale bildirildi', PAID: 'Ödeme doğrulandı' };
 const AUDIT_LABEL: Record<string, string> = {
@@ -24,15 +27,27 @@ const AUDIT_LABEL: Record<string, string> = {
   BOOKING_CHANGED: 'Konaklama bilgileri değiştirildi',
   BOOKING_CANCELLED: 'Rezervasyon iptal edildi',
   PAYMENT_DECLARED: 'Misafir havale yaptığını bildirdi',
+  CANCELLATION_REQUESTED: 'Ev sahibi iptal talebi bıraktı',
+  REQUEST_CREATED: 'Rezervasyon talebi oluşturuldu',
+  REQUEST_ACCEPTED: 'Rezervasyon talebi kabul edildi',
+  REQUEST_DECLINED: 'Rezervasyon talebi reddedildi',
+  REQUEST_WITHDRAWN: 'Rezervasyon talebi geri çekildi',
+  CHANGE_REQUESTED: 'Değişiklik talebi oluşturuldu',
+  CHANGE_REQUEST_REJECTED: 'Değişiklik talebi reddedildi',
+  CANCELLATION_REQUEST_REJECTED: 'İptal talebi reddedildi',
+  SERVICE_REQUEST_WITHDRAWN: 'Talep geri çekildi',
+  REFUND_UPDATED: 'İade durumu güncellendi',
 };
 
 export default function ReservationDetail({ id, scope = 'admin' }: { id: string; scope?: 'admin' | 'host' }) {
-  const api = scope === 'admin' ? bookingApi : hostBookingApi;
+  const api: BookingApiClient = scope === 'admin' ? bookingApi : hostBookingApi;
   const backHref = scope === 'admin' ? '/admin/rezervasyonlar' : '/hesabim/ev-sahibi/rezervasyonlar';
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState({ from: '', to: '', adults: 2, children: 0, infants: 0 });
   const [cancelNote, setCancelNote] = useState('');
+  const [cancelRequestReason, setCancelRequestReason] = useState('');
+  const [declineRequestNote, setDeclineRequestNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -183,17 +198,27 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
             </section>
 
             <AuditTimeline audits={booking.audits} />
+            <ServiceRequestsPanel booking={booking} api={api} scope={scope} onReload={load} />
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-24 xl:h-fit">
-            <ApprovalCard booking={booking} busy={busy} scope={scope} onConfirm={() => {
+            {booking.status === 'REQUESTED' ? (
+              <section className="rounded-2xl border border-gold/35 bg-gold/[0.08] p-5">
+                <p className="eyebrow text-gold">Yeni talep</p>
+                <h2 className="mt-3 font-display text-xl font-light text-ink">Müsaitliği tekrar kontrol edin</h2>
+                <p className="mt-2 text-[0.8rem] leading-relaxed text-muted">Kabul anında stok ve fiyat yeniden hesaplanır; uygunsa müşteriye ödeme için 10 dakikalık bekletme açılır.</p>
+                <button disabled={busy} onClick={() => run(() => api.accept(booking.id), 'Talep sonucu güncellendi.')} className="mt-4 w-full rounded-full bg-ink px-5 py-2.5 text-[0.8rem] text-canvas disabled:opacity-40">Talebi kabul et</button>
+                <textarea value={declineRequestNote} onChange={(e) => setDeclineRequestNote(e.target.value)} minLength={2} maxLength={300} rows={2} placeholder="Red gerekçesi" className={`${INPUT} mt-4 resize-none`} />
+                <button disabled={busy || declineRequestNote.trim().length < 2} onClick={() => run(() => api.decline(booking.id, declineRequestNote), 'Talep reddedildi.')} className="mt-3 w-full rounded-full border border-red-200 px-5 py-2.5 text-[0.8rem] text-red-700 disabled:opacity-40">Talebi reddet</button>
+              </section>
+            ) : <ApprovalCard booking={booking} busy={busy} scope={scope} onConfirm={() => {
               const confirm = api.confirm;
               if (!confirm) return;
               const warning = booking.paymentStatus === 'PENDING'
                 ? 'Misafir henüz havale bildirimi yapmadı. Ödemeyi başka şekilde doğruladıysanız devam edin. Rezervasyon onaylansın mı?'
                 : 'Havale tutarını banka hesabından doğruladınız mı? Rezervasyon kesinleştirilecek.';
               if (window.confirm(warning)) void run(() => confirm(booking.id, booking.version), 'Rezervasyon onaylandı.');
-            }} />
+            }} />}
 
             {(scope === 'admin' ? editable : booking.status === 'HOLD') && (
               <section className="rounded-2xl border border-red-200 bg-surface p-5">
@@ -208,8 +233,41 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
 
             {scope === 'host' && booking.status === 'CONFIRMED' && (
               <section className="rounded-2xl border border-line bg-surface p-5">
-                <p className="eyebrow text-muted">İptal</p>
-                <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">Onaylanmış bir rezervasyonu iptal etmek için yönetimle iletişime geçin.</p>
+                <p className="eyebrow text-muted">İptal talebi</p>
+                <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">
+                  Onaylanmış bir rezervasyonu doğrudan iptal edemezsiniz — kapora yönetime yatmıştır. Gerekçenizi
+                  yazın, talebiniz işlem geçmişine düşer ve yönetim değerlendirir.
+                </p>
+                <textarea
+                  rows={3}
+                  value={cancelRequestReason}
+                  onChange={(event) => setCancelRequestReason(event.target.value)}
+                  placeholder="İptal gerekçesi"
+                  className={`${INPUT} mt-4 resize-none`}
+                />
+                <button
+                  disabled={busy || cancelRequestReason.trim().length < 2}
+                  onClick={async () => {
+                    const requestCancellation = api.requestCancellation;
+                    if (!requestCancellation) return;
+                    setBusy(true);
+                    setError(null);
+                    setMessage(null);
+                    try {
+                      await requestCancellation(booking.id, cancelRequestReason);
+                      await load();
+                      setCancelRequestReason('');
+                      setMessage('İptal talebiniz yönetime iletildi.');
+                    } catch (cause) {
+                      setError(cause instanceof Error ? cause.message : 'Talep gönderilemedi.');
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  className="mt-3 w-full rounded-full border border-red-300 px-4 py-2.5 text-[0.8rem] text-red-700 hover:bg-red-50 disabled:opacity-40"
+                >
+                  İptal talebi gönder
+                </button>
               </section>
             )}
 
@@ -261,6 +319,79 @@ function ApprovalCard({ booking, busy, scope, onConfirm }: { booking: Booking; b
       <div className="mt-4 rounded-xl bg-surface/80 px-4 py-3"><p className="eyebrow text-muted">Havale açıklaması</p><p className="mt-1 font-mono text-[0.9rem] tracking-wide text-ink">{reference(booking.id)}</p></div>
       <button disabled={busy} onClick={onConfirm} className={`mt-5 w-full rounded-full px-5 py-3 text-[0.82rem] text-white disabled:opacity-40 ${declared ? 'bg-olive hover:bg-olive/90' : 'bg-ink hover:bg-olive'}`}>{busy ? 'İşleniyor…' : declared ? 'Havaleyi doğrula ve onayla' : 'Ödeme olmadan onayla'}</button>
     </section>
+  );
+}
+
+function ServiceRequestsPanel({ booking, api, scope, onReload }: { booking: BookingDetail; api: BookingApiClient; scope: 'admin' | 'host'; onReload: () => Promise<void> }) {
+  if (!booking.serviceRequests.length) return null;
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+      <p className="eyebrow text-muted">Değişiklik ve iptal talepleri</p>
+      <div className="mt-5 space-y-4">
+        {booking.serviceRequests.map((request) => <ServiceRequestCard key={request.id} request={request} booking={booking} api={api} scope={scope} onReload={onReload} />)}
+      </div>
+    </section>
+  );
+}
+
+function ServiceRequestCard({ request, booking, api, scope, onReload }: { request: ServiceRequest; booking: Booking; api: BookingApiClient; scope: 'admin' | 'host'; onReload: () => Promise<void> }) {
+  const [note, setNote] = useState('');
+  const [refundAmount, setRefundAmount] = useState(booking.prepaymentAmount);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const canResolve = request.status === 'PENDING' && (request.type === 'CHANGE' || scope === 'admin');
+
+  async function resolve(decision: 'APPROVED' | 'REJECTED') {
+    setBusy(true); setError('');
+    try {
+      await api.resolveRequest(request.id, {
+        decision,
+        resolutionNote: note || undefined,
+        ...(decision === 'APPROVED' && request.type === 'CANCELLATION' ? { refundStatus: refundAmount > 0 ? 'PENDING' as const : undefined, refundAmount } : {}),
+      });
+      await onReload();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Talep sonuçlandırılamadı.'); }
+    finally { setBusy(false); }
+  }
+
+  async function completeRefund() {
+    setBusy(true); setError('');
+    try { await bookingApi.updateRefund(request.id, { status: 'COMPLETED', amount: request.refundAmount, note: note || undefined }); await onReload(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'İade durumu güncellenemedi.'); }
+    finally { setBusy(false); }
+  }
+
+  async function withdraw() {
+    if (!api.withdrawRequest) return;
+    setBusy(true); setError('');
+    try { await api.withdrawRequest(request.id); await onReload(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Talep geri çekilemedi.'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <article className="rounded-xl border border-line bg-canvas p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <strong className="text-[0.86rem] text-ink">{request.type === 'CHANGE' ? 'Konaklama değişikliği' : 'İptal talebi'}</strong>
+        <span className="rounded-full bg-sand px-3 py-1 text-[0.7rem] text-muted">{request.status === 'PENDING' ? 'Bekliyor' : request.status === 'APPROVED' ? 'Onaylandı' : request.status === 'REJECTED' ? 'Reddedildi' : 'Geri çekildi'}</span>
+      </div>
+      {request.payload && <p className="mt-3 text-[0.8rem] text-muted">{fullDate(request.payload.from)} – {fullDate(request.payload.to)} · {guestLabel(request.payload)}{request.payload.preview ? ` · Talep anı önizlemesi ${formatPrice(request.payload.preview.totalAmount, request.payload.preview.currency)}` : ''}</p>}
+      {request.customerNote && <p className="mt-2 text-[0.8rem] text-ink-soft">{request.requester?.role === 'HOST' ? 'Ev sahibi' : 'Misafir'} notu: {request.customerNote}</p>}
+      {request.resolutionNote && <p className="mt-2 text-[0.8rem] text-muted">Karar notu: {request.resolutionNote}</p>}
+      {request.type === 'CANCELLATION' && request.refundStatus !== 'NONE' && <p className="mt-2 text-[0.8rem] text-muted">İade: {request.refundStatus === 'PENDING' ? 'bekliyor' : request.refundStatus === 'COMPLETED' ? 'tamamlandı' : 'yapılmayacak'} · {formatPrice(request.refundAmount, booking.currency)}{request.refundNote ? ` · ${request.refundNote}` : ''}</p>}
+
+      {canResolve && (
+        <div className="mt-4 border-t border-line pt-4">
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={2} placeholder="Karar notu" className={`${INPUT} resize-none`} />
+          {scope === 'admin' && request.type === 'CANCELLATION' && <Field label="Tahmini manuel iade"><input type="number" min={0} max={booking.prepaymentAmount} value={refundAmount} onChange={(e) => setRefundAmount(Number(e.target.value))} className={`${INPUT} mt-3`} /></Field>}
+          <div className="mt-3 flex gap-2"><button disabled={busy} onClick={() => resolve('APPROVED')} className="rounded-full bg-ink px-5 py-2 text-[0.76rem] text-canvas disabled:opacity-40">Onayla</button><button disabled={busy || note.trim().length < 2} onClick={() => resolve('REJECTED')} className="rounded-full border border-red-200 px-5 py-2 text-[0.76rem] text-red-700 disabled:opacity-40">Reddet</button></div>
+        </div>
+      )}
+      {scope === 'host' && request.status === 'PENDING' && request.type === 'CANCELLATION' && <p className="mt-3 text-[0.78rem] text-muted">Kapora iadesi nedeniyle bu talebi yönetim sonuçlandırır.</p>}
+      {scope === 'host' && request.status === 'PENDING' && request.requester?.role === 'HOST' && <button disabled={busy} onClick={withdraw} className="mt-3 text-[0.76rem] text-ink underline underline-offset-4 disabled:opacity-40">Kendi talebimi geri çek</button>}
+      {scope === 'admin' && request.status === 'APPROVED' && request.type === 'CANCELLATION' && request.refundStatus === 'PENDING' && <div className="mt-4 border-t border-line pt-4"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Banka/iade notu" className={INPUT} /><button disabled={busy} onClick={completeRefund} className="mt-3 rounded-full bg-olive px-5 py-2 text-[0.76rem] text-white disabled:opacity-40">İadeyi tamamlandı işaretle</button></div>}
+      {error && <p role="alert" className="mt-3 text-[0.76rem] text-red-700">{error}</p>}
+    </article>
   );
 }
 

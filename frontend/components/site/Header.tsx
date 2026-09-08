@@ -164,6 +164,13 @@ export default function Header() {
                 Seyahatlerim
               </Link>
               <Link
+                href="/hesabim/yorumlarim"
+                onClick={() => setOpen(false)}
+                className="border-b border-line/70 py-4 font-display text-2xl text-ink"
+              >
+                Yorumlarım
+              </Link>
+              <Link
                 href="/hesabim/profil"
                 onClick={() => setOpen(false)}
                 className="border-b border-line/70 py-4 font-display text-2xl text-ink"
@@ -276,6 +283,9 @@ function AccountMenu({
           </MenuLink>
           <MenuLink href="/hesabim/seyahatlerim" onClick={() => setOpen(false)}>
             Seyahatlerim
+          </MenuLink>
+          <MenuLink href="/hesabim/yorumlarim" onClick={() => setOpen(false)}>
+            Yorumlarım
           </MenuLink>
           <MenuLink href="/hesabim/profil" onClick={() => setOpen(false)}>
             Profil ve güvenlik

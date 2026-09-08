@@ -56,6 +56,15 @@ Başvuru kalıcı kaynak kayıt olarak kalır; hiçbir alan başka tabloya kopya
 npx prisma db execute --file prisma/sql/20260908_host_onboarding_link.sql --schema prisma/schema.prisma
 ```
 
+`20260908_service_requests.sql`, C2 rezervasyon talebi, değişiklik/iptal talebi
+ve manuel kapora iadesi durumlarını ekler. `20260908_verified_reviews.sql` ise C4 doğrulanmış yorumları,
+tek owner yanıtını ve puan bütünlüğü kısıtlarını ekler:
+
+```sh
+npx prisma db execute --file prisma/sql/20260908_service_requests.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_verified_reviews.sql --schema prisma/schema.prisma
+```
+
 iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 16 karakterlik, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Tanımlı değilse mevcut `JWT_SECRET` kullanılır; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
 
 Kalıcı Prisma Migrate geçmişine geçerken önce mevcut şema için baseline oluşturulup bu migration uygulanmış olarak işaretlenmelidir. Canlı veritabanı resetlenmez ve veri silen seed komutu kullanılmaz.

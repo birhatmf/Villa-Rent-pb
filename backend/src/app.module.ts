@@ -11,6 +11,7 @@ import { FavoritesController } from './favorites/favorites.controller';
 import { FavoritesService } from './favorites/favorites.service';
 import { AdminBookingsController, HostBookingsController } from './bookings/admin-bookings.controller';
 import { BookingsController } from './bookings/bookings.controller';
+import { AdminServiceRequestsController, HostServiceRequestsController } from './bookings/service-requests.controller';
 import { BookingsService } from './bookings/bookings.service';
 import { OccupancyService } from './bookings/occupancy.service';
 import { AdminCalendarController, HostCalendarController } from './bookings/calendar.controller';
@@ -18,7 +19,7 @@ import { CalendarService } from './bookings/calendar.service';
 import { AdminIcalController, HostIcalController, PublicIcalController } from './ical/ical.controller';
 import { IcalService } from './ical/ical.service';
 import { FeaturedController } from './villas/featured.controller';
-import { AdminHostApplicationsController } from './host-applications/admin-host-applications.controller';
+import { AdminHostApplicationsController, HostOnboardingController } from './host-applications/admin-host-applications.controller';
 import { HostApplicationsController } from './host-applications/host-applications.controller';
 import { HostApplicationsService } from './host-applications/host-applications.service';
 import { ConceptsController } from './pages/concepts.controller';
@@ -35,6 +36,14 @@ import { PublicVillasController } from './villas/public-villas.controller';
 import { HostVillasController } from './villas/host-villas.controller';
 import { VillaImagesService } from './villas/villa-images.service';
 import { VillasService } from './villas/villas.service';
+import {
+  AdminReviewsController,
+  BookingReviewsController,
+  CustomerReviewsController,
+  HostReviewsController,
+  PublicReviewsController,
+} from './reviews/reviews.controller';
+import { ReviewsService } from './reviews/reviews.service';
 
 @Module({
   imports: [
@@ -55,8 +64,11 @@ import { VillasService } from './villas/villas.service';
     AdminSettingsController,
     HostApplicationsController,
     AdminHostApplicationsController,
+    HostOnboardingController,
     AdminBookingsController,
     HostBookingsController,
+    AdminServiceRequestsController,
+    HostServiceRequestsController,
     BookingsController,
     AdminCalendarController,
     HostCalendarController,
@@ -68,6 +80,11 @@ import { VillasService } from './villas/villas.service';
     HostVillasController,
     PublicVillasController,
     FavoritesController,
+    PublicReviewsController,
+    CustomerReviewsController,
+    BookingReviewsController,
+    HostReviewsController,
+    AdminReviewsController,
   ],
   providers: [
     PrismaService,
@@ -84,6 +101,7 @@ import { VillasService } from './villas/villas.service';
     OccupancyService,
     CalendarService,
     IcalService,
+    ReviewsService,
   ],
 })
 export class AppModule {}
