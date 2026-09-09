@@ -4,7 +4,7 @@ My Villa; villa listeleme, tarih bazlı müsaitlik, güvenli rezervasyon, admin/
 
 ## Kaldığımız durum
 
-Son güncelleme: **8 Eylül 2026**
+Son güncelleme: **9 Eylül 2026**
 
 | Aşama | Durum | Teslim |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ Son güncelleme: **8 Eylül 2026**
 | C2 — Customer talepleri | Tamamlandı | Gerçek `REQUESTED` akışı, güvenli kabul/red, fiyatlı değişiklik önizlemesi, takip edilebilir değişiklik/iptal talepleri ve manuel iade durumu |
 | C3 — Bildirim ve konaklama | Planlandı | Transactional outbox, e-posta gönderimi ve giriş/çıkış bilgileri |
 | C4 — Doğrulanmış yorumlar | Tamamlandı | 30 günlük uygunluk, tek yorum, 24 saat düzenleme, admin moderasyonu, owner yanıtı ve public puan özeti |
-| O1 — Ev sahibi paneli ve onboarding | Tamamlandı | Kapora = platform komisyonu (villa bazlı oran override'ı), onay yalnızca admin'de, net kazanç görünürlüğü, başvuru → gerçek hesap/villa bağlama, iki gizlilik tutarsızlığının düzeltilmesi, özet/takvim sekmeleri, owner iptal talebi |
+| O1 — Ev sahibi paneli ve onboarding | Tamamlandı | Kayıt zorunlu başvuru, atomik GUEST → HOST onayı, kesin rol ayrımı, günlük operasyon özeti, portföy/rezervasyon/takvim/yorum yönetimi ve owner iptal talebi |
 
 Ana dalın Aşama 4 referansı: `df16d6d`.
 
@@ -28,6 +28,9 @@ Ayrıntılı ürün ve teknik kararlar için [uygulama planına](docs/plans/vill
 Customer hesap, seyahat ve yorum incelemesi için [customer deneyimi planına](docs/plans/customer-hesap-rezervasyon-yorum.md) bakın.
 
 Ev sahibi paneli, komisyon modeli ve onboarding zinciri için [ev sahibi paneli planına](docs/plans/ev-sahibi-paneli.md) bakın.
+
+Ubuntu VPS üzerinde PostgreSQL, migration, systemd, Nginx, HTTPS, veri taşıma ve
+yedekleme adımları için [production kurulum rehberine](docs/production-kurulum.md) bakın.
 
 ## Teknoloji
 
@@ -77,8 +80,10 @@ npx prisma db execute --file prisma/sql/20260907_ical_sync.sql --schema prisma/s
 npx prisma db execute --file prisma/sql/20260907_booking_payment.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260908_customer_account.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260908_host_onboarding_link.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_authenticated_host_applications.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260908_service_requests.sql --schema prisma/schema.prisma
 npx prisma db execute --file prisma/sql/20260908_verified_reviews.sql --schema prisma/schema.prisma
+npx prisma db execute --file prisma/sql/20260908_info_pages.sql --schema prisma/schema.prisma
 npm run db:seed
 npm run dev
 ```
@@ -142,9 +147,10 @@ Testlerde kullanılan `DATABASE_URL` gerçek veya paylaşılan geliştirme verit
 
 ## Customer, owner ve admin erişimi
 
-- Her rol customer olarak rezervasyon yapabilir; kendi kayıtları yalnızca `guestId` üzerinden `/hesabim/seyahatlerim` altında görünür.
+- Her hesap tek role sahiptir. Hesaba bağlı rezervasyon, favori ve yorum uçları yalnızca `GUEST`; owner uçları yalnızca `HOST`; yönetim uçları yalnızca `ADMIN` rolüne açıktır. Üyesiz rezervasyonlar herhangi bir kullanıcı rolüne bağlanmaz (`guestId = null`) ve rezervasyona özel imzalı HTTP-only çerezle korunur.
+- Ev sahibi adayı önce e‑posta, telefon ve şifreyle müşteri hesabı açar. Başvuru bu hesaba bağlanır; admin onayı başvuru ile aynı transaction içinde hesabı `HOST` yapar ve eski oturumu geçersiz kılar.
 - Owner araçları `/hesabim/ev-sahibi/*` altındadır ve backend her isteği villanın `hostId` alanıyla sınırlar. Admin genel operasyon için ayrı `/admin/*` uçlarını kullanır.
-- Rol değiştirme ve hesap pasifleştirme eski oturumları anında geçersiz kılar. Son aktif admin kaldırılamaz; bağlı villası olan owner misafir rolüne düşürülemez; rezervasyon veya villa geçmişi olan hesap fiziksel silinemez.
+- Rol değiştirme ve hesap pasifleştirme eski oturumları anında geçersiz kılar. Ev sahibi rolü üye ekranından elle verilemez; yalnızca başvuru onayıyla oluşur. Son aktif admin kaldırılamaz; operasyon geçmişi olan hesap fiziksel silinemez.
 - Profil ve parola `/hesabim/profil` sayfasından değişir. Parola değişikliği diğer cihazlardaki oturumları kapatır.
 
 ## Rezervasyon ve iCal davranışı
@@ -162,7 +168,7 @@ Canlı pilotta villa düzenleme ekranından önce kaynağı önizleyin, sonra ba
 ## Kiralama akışı ve kapora
 
 1. Misafir villa detayında tarih ve kişi sayısını seçer; takvim her gecenin fiyatını gösterir, sağdaki kutu toplamı ve kaporayı canlı hesaplar.
-2. **Rezervasyona devam et** ile detay adımına geçilir. Oturum zorunludur; iletişim bilgileri hesaptan doldurulur.
+2. **Rezervasyona devam et** ile detay adımına geçilir. Kullanıcı giriş yaparak rezervasyonu hesabına bağlayabilir veya ad, e‑posta ve telefonla üye olmadan devam edebilir.
 3. Onaylandığında 10 dakikalık `HOLD` açılır ve ödeme adımı görünür: kapora tutarı, admin tanımlı IBAN ve rezervasyona özel havale açıklaması (`MV-XXXXXX`).
 
 `REQUEST` modundaki villalarda aynı ekran ödeme bekletmesi yerine gerçek bir
@@ -186,6 +192,7 @@ backend/
   prisma/schema.prisma       Veri modeli
   prisma/sql/                Veri koruyan, elle uygulanan SQL migration'ları
   src/bookings/              Rezervasyon, müsaitlik kilidi, takvim ve audit
+  src/admin/                 CMS yönetimi ve ortak içerik görseli yükleme
   src/ical/                  Güvenli indirme, parser, senkronizasyon ve export
   src/villas/                Villa yönetimi, public liste ve müsaitlik
 frontend/

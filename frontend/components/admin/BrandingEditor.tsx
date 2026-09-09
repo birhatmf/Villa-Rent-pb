@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import BrandMark from '@/components/site/BrandMark';
 import { BRANDING_DEFAULTS, normalizeBranding, type Branding } from '@/lib/branding';
@@ -8,6 +9,7 @@ import { getSetting, saveSetting } from '@/lib/adminApi';
 import { ImageUploadField } from './ImageUploadField';
 
 export default function BrandingEditor() {
+  const router = useRouter();
   const [draft, setDraft] = useState<Branding | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,6 +57,7 @@ export default function BrandingEditor() {
       setDraft(value);
       setDirty(false);
       setSaved(true);
+      router.refresh();
       window.setTimeout(() => setSaved(false), 2000);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Marka ayarları kaydedilemedi.');

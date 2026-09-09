@@ -220,7 +220,15 @@ const FOOTER = {
     { label: 'Çerez Politikası', href: '/cerez-politikasi' },
     { label: 'Kullanım Koşulları', href: '/kullanim-kosullari' },
   ],
-  copyright: '© {year} Villa Sepeti. Tüm hakları saklıdır.',
+  copyright: '© {year} {company}. Tüm hakları saklıdır.',
+};
+
+const BRANDING = {
+  companyName: 'Villa Sepeti',
+  shortName: 'Villa Sepeti',
+  logo: '',
+  logoOnDark: '',
+  favicon: '',
 };
 
 const CONCEPTS = [
@@ -264,6 +272,11 @@ async function main() {
     where: { key: 'footer' },
     update: {},
     create: { key: 'footer', value: FOOTER },
+  });
+  await prisma.setting.upsert({
+    where: { key: 'branding' },
+    update: {},
+    create: { key: 'branding', value: BRANDING },
   });
 
   const email = process.env.ADMIN_EMAIL ?? 'admin@villasepeti.com';

@@ -13,7 +13,7 @@ class SetSettingDto {
  * oranı ve IBAN taşır; bunlar yalnızca admin ucundan ve kendi rezervasyonunu
  * görüntüleyen misafirin rezervasyon yanıtından okunur.
  */
-const PUBLIC_SETTING_KEYS = new Set(['footer']);
+const PUBLIC_SETTING_KEYS = new Set(['footer', 'branding']);
 
 @Controller('settings')
 export class SettingsController {
