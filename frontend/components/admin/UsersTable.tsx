@@ -85,7 +85,7 @@ export default function UsersTable() {
               <tr
                 key={u.id}
                 onClick={() => setSelected(u)}
-                className={`cursor-pointer border-b border-line/70 transition-colors hover:bg-sand/50 ${
+                className={`cursor-pointer border-b border-line/70 transition-colors hover:bg-sand/50 active:bg-sand/70 ${
                   selected?.id === u.id ? 'bg-sand/70' : ''
                 }`}
               >
@@ -167,12 +167,24 @@ function UserDrawer({
   const [active, setActive] = useState(user.active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  function requestClose() {
+    if (!visible) return;
+    setVisible(false);
+    window.setTimeout(onClose, 200);
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && requestClose();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  });
 
   const dirty = role !== user.role || active !== user.active;
 
@@ -203,12 +215,19 @@ function UserDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="flex-1 bg-ink/25" onClick={onClose} />
-      <div className="flex w-[380px] flex-col border-l border-line bg-canvas">
+      <div
+        className={`flex-1 bg-ink/25 transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        onClick={requestClose}
+      />
+      <div
+        className={`flex w-[380px] flex-col border-l border-line bg-canvas transition-transform duration-200 ease-out ${
+          visible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
         <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-3.5">
           <h2 className="truncate font-display text-lg font-light text-ink">{user.name}</h2>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Kapat"
             className="text-muted transition-colors hover:text-ink"
           >
@@ -233,10 +252,15 @@ function UserDrawer({
               onChange={(e) => setRole(e.target.value as AdminUser['role'])}
               className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2 text-[0.9rem] text-ink outline-none focus:border-olive-soft"
             >
-              <option value="GUEST">Misafir</option>
-              <option value="HOST">Ev sahibi</option>
-              <option value="ADMIN">Yönetici</option>
+              <option value="GUEST" disabled={user.role === 'HOST'}>Misafir</option>
+              <option value="HOST" disabled={user.role !== 'HOST'}>Ev sahibi</option>
+              <option value="ADMIN" disabled={user.role === 'HOST'}>Yönetici</option>
             </select>
+            {user.role !== 'HOST' && (
+              <span className="mt-1.5 block text-[0.76rem] leading-relaxed text-muted">
+                Ev sahibi rolü yalnızca onaylanan başvuruyla verilir.
+              </span>
+            )}
           </label>
 
           <label className="flex cursor-pointer items-center gap-2.5">

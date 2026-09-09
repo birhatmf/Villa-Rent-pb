@@ -2,7 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { me, type AccountUser } from '@/lib/authApi';
 import {
   createHostApplication,
   uploadHostApplicationDocument,
@@ -22,8 +23,6 @@ type FormState = Omit<CreateApplicationInput, 'maxCapacity'> & { maxCapacity: st
 const EMPTY: FormState = {
   ownerName: '',
   ownerIdNumber: '',
-  phone: '',
-  email: '',
   uetsAddress: '',
   iban: 'TR',
   address: '',
@@ -36,12 +35,28 @@ const EMPTY: FormState = {
 };
 
 export default function EvSahibiPage() {
+  const [account, setAccount] = useState<AccountUser | null>();
   const [form, setForm] = useState<FormState>(EMPTY);
   const [files, setFiles] = useState<Partial<Record<DocumentType, File>>>({});
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ id: string; partial: boolean } | null>(null);
+
+  useEffect(() => {
+    me()
+      .then((user) => {
+        setAccount(user);
+        if (user.role === 'GUEST') {
+          setForm((current) => ({
+            ...current,
+            ownerName: current.ownerName || user.name,
+            signatureName: current.signatureName || user.name,
+          }));
+        }
+      })
+      .catch(() => setAccount(null));
+  }, []);
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -100,6 +115,30 @@ export default function EvSahibiPage() {
     }
   }
 
+  if (account === undefined) return <Gate title="Hesabınız kontrol ediliyor" body="Lütfen bekleyin…" />;
+  if (!account) {
+    return (
+      <Gate
+        title="Önce hesabınızı oluşturun"
+        body="Ev sahibi başvurunuz kayıtlı hesabınıza bağlanır. E‑posta, telefon ve şifrenizle ücretsiz hesap oluşturduktan sonra bu forma geri döneceksiniz."
+        actions={
+          <>
+            <Link href="/kayit?next=/ev-sahibi" className="rounded-full bg-ink px-7 py-3 text-sm text-canvas">Hesap oluştur</Link>
+            <Link href="/giris?next=/ev-sahibi" className="rounded-full border border-ink/20 px-7 py-3 text-sm text-ink">Giriş yap</Link>
+          </>
+        }
+      />
+    );
+  }
+  if (account.role === 'HOST') {
+    return <Gate title="Zaten ev sahibisiniz" body="Villalarınızı ve başvurularınızı ev sahibi panelinden yönetebilirsiniz." actions={<Link href="/hesabim/ev-sahibi" className="rounded-full bg-ink px-7 py-3 text-sm text-canvas">Ev sahibi paneline git</Link>} />;
+  }
+  if (account.role === 'ADMIN') {
+    return <Gate title="Yönetici hesabıyla başvuru yapılamaz" body="Her hesap yalnızca tek role sahiptir. Ev sahibi başvurusu için müşteri hesabı gerekir." actions={<Link href="/admin" className="rounded-full bg-ink px-7 py-3 text-sm text-canvas">Yönetim paneline git</Link>} />;
+  }
+  if (!account.phone) {
+    return <Gate title="Telefon numaranızı ekleyin" body="Ev sahibi başvurusuna devam etmek için profilinizde doğrulanabilir bir telefon numarası bulunmalı." actions={<Link href="/hesabim/profil" className="rounded-full bg-ink px-7 py-3 text-sm text-canvas">Profili düzenle</Link>} />;
+  }
   if (result) return <SuccessScreen id={result.id} partial={result.partial} />;
 
   return (
@@ -134,21 +173,11 @@ export default function EvSahibiPage() {
           <Field label="T.C. Kimlik / Pasaport / Vergi No" required>
             <input required value={form.ownerIdNumber} onChange={set('ownerIdNumber')} className={fieldCls} />
           </Field>
-          <Row>
-            <Field label="Telefon" required>
-              <input
-                type="tel"
-                required
-                placeholder="0555 000 00 00"
-                value={form.phone}
-                onChange={set('phone')}
-                className={fieldCls}
-              />
-            </Field>
-            <Field label="E‑posta" required>
-              <input type="email" required value={form.email} onChange={set('email')} className={fieldCls} />
-            </Field>
-          </Row>
+          <div className="grid gap-4 rounded-xl border border-line bg-sand/35 px-5 py-4 sm:grid-cols-2">
+            <div><span className="eyebrow text-muted">Hesap e‑postası</span><p className="mt-1 text-[0.94rem] text-ink">{account.email}</p></div>
+            <div><span className="eyebrow text-muted">Hesap telefonu</span><p className="mt-1 text-[0.94rem] text-ink">{account.phone}</p></div>
+            <p className="text-[0.78rem] leading-relaxed text-muted sm:col-span-2">Başvuru bu hesaba bağlanacaktır. İletişim bilgilerinizi profilinizden güncelleyebilirsiniz.</p>
+          </div>
           <Field label="UETS (Elektronik Tebligat) Adresi">
             <input value={form.uetsAddress} onChange={set('uetsAddress')} className={fieldCls} />
           </Field>
@@ -354,6 +383,19 @@ function Field({
 const Row = ({ children }: { children: React.ReactNode }) => (
   <div className="grid gap-7 sm:grid-cols-2">{children}</div>
 );
+
+function Gate({ title, body, actions }: { title: string; body: string; actions?: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-6 pt-20">
+      <div className="max-w-lg text-center">
+        <p className="eyebrow text-gold">Ev sahibi başvurusu</p>
+        <h1 className="mt-4 font-display text-4xl font-light tracking-[-0.02em] text-ink">{title}</h1>
+        <p className="mt-5 text-[0.96rem] leading-relaxed text-muted">{body}</p>
+        {actions && <div className="mt-8 flex flex-wrap justify-center gap-3">{actions}</div>}
+      </div>
+    </div>
+  );
+}
 
 function SuccessScreen({ id, partial }: { id: string; partial: boolean }) {
   return (

@@ -26,7 +26,7 @@ Bu belge, mevcut kod üzerinden customer/misafir yolculuğunu inceler ve satış
 | Giriş/çıkış | Büyük ölçüde hazır | HTTP-only JWT, genel hata, hız sınırı, güvenli `next`, parola değiştirme ve oturum iptali | Parola sıfırlama ve aktif cihaz listesi yok |
 | Profil | Kısmen hazır | Ad ve telefon düzenleme, e-posta/üyelik bilgisi görüntüleme | Doğrulamalı e-posta değişimi, hesap kapatma ve veri talebi yok |
 | Favoriler | Hazır | Ekleme, kaldırma, hesapta listeleme ve her istekte aktif hesap kontrolü | Koleksiyon/paylaşım sonraki kapsam |
-| Rezervasyon oluşturma | Hazır | Instant villada idempotent `HOLD`; talep villasında stok kapatmayan `REQUESTED`; kabul anında yeniden fiyat/stok kontrolü | — |
+| Rezervasyon oluşturma | Hazır | Instant villada idempotent `HOLD`; talep villasında stok kapatmayan `REQUESTED`; kabul anında yeniden fiyat/stok kontrolü; hesaplı veya rezervasyona özel imzalı çerezle korunan üyesiz devam akışı | — |
 | Kendi rezervasyonları | Hazır | `/hesabim/seyahatlerim` altında işlem gereken/yaklaşan/geçmiş/iptal filtreleri, sayfalama, sahiplik kontrollü detay ve C2 talep aksiyonları | Görsel durum zaman çizgisi C3 ile tamamlanacak |
 | Rezervasyon değişikliği | Hazır | Müşteri fiyat/müsaitlik önizlemesiyle talep açar; admin/host karar anında yeniden doğrular | — |
 | İptal | Hazır | Müşteri ve owner takip edilebilir talep açar; yalnızca admin iptal/iade kararını verir | POS olmadığı için banka iadesi manuel yürür |
@@ -58,7 +58,7 @@ Bu belge, mevcut kod üzerinden customer/misafir yolculuğunu inceler ve satış
 | `/hesabim/yorumlarim` | Yazılmayı bekleyen ve daha önce gönderilen yorumlar |
 | `/hesabim/ev-sahibi/*` | Yalnızca host operasyonları; customer seyahatlerinden ayrı |
 
-Header menüsünde GUEST için “Seyahatlerim”, “Favorilerim”, “Profil ve güvenlik”; HOST için bunlara ek “Ev sahibi paneli” gösterilir. Aynı kullanıcı hem villa sahibi hem misafir olabilir.
+Header menüsü role göre ayrılır: GUEST “Hesabım”, “Seyahatlerim” ve “Yorumlarım”; HOST yalnızca ev sahibi paneli; ADMIN yalnızca yönetim paneli araçlarını görür. Profil ve güvenlik her girişli role açıktır. Her hesap tek role sahiptir.
 
 ## 4. Hesap ve kimlik modülü
 

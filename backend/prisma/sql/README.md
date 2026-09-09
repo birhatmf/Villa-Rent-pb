@@ -56,6 +56,14 @@ Başvuru kalıcı kaynak kayıt olarak kalır; hiçbir alan başka tabloya kopya
 npx prisma db execute --file prisma/sql/20260908_host_onboarding_link.sql --schema prisma/schema.prisma
 ```
 
+`20260908_authenticated_host_applications.sql`, yeni başvuruların önceden
+kayıtlı hesaba bağlandığı akışta aynı kullanıcı için birden fazla bekleyen veya
+onaylı başvuru oluşmasını veritabanı seviyesinde engeller:
+
+```sh
+npx prisma db execute --file prisma/sql/20260908_authenticated_host_applications.sql --schema prisma/schema.prisma
+```
+
 `20260908_service_requests.sql`, C2 rezervasyon talebi, değişiklik/iptal talebi
 ve manuel kapora iadesi durumlarını ekler. `20260908_verified_reviews.sql` ise C4 doğrulanmış yorumları,
 tek owner yanıtını ve puan bütünlüğü kısıtlarını ekler:

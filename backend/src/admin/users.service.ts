@@ -87,8 +87,20 @@ export class UsersService {
           throw new BadRequestException('Kendi hesabınızı engelleyemezsiniz.');
         }
       }
-      if (data.role === 'GUEST' && target._count.villas > 0) {
-        throw new BadRequestException('Villaları bağlı olan ev sahibi misafir rolüne düşürülemez. Önce villaları devredin.');
+      if (data.role === 'HOST' && target.role !== 'HOST') {
+        throw new BadRequestException('Ev sahibi rolü yalnızca onaylanan ev sahibi başvurusuyla verilir.');
+      }
+      if (target.role === 'HOST' && data.role && data.role !== 'HOST') {
+        throw new BadRequestException('Ev sahibi hesabının rolü değiştirilemez; gerekirse hesabı pasifleştirin.');
+      }
+      if (data.role === 'ADMIN' && target.role !== 'ADMIN') {
+        const ownerApplication = await tx.hostApplication.findFirst({
+          where: { linkedHostId: id, status: { in: ['PENDING', 'APPROVED'] } },
+          select: { id: true },
+        });
+        if (ownerApplication) {
+          throw new BadRequestException('Aktif ev sahibi başvurusu olan hesap yönetici yapılamaz.');
+        }
       }
       const removesAdmin = target.role === 'ADMIN' && target.active && ((data.role && data.role !== 'ADMIN') || data.active === false);
       if (removesAdmin) {

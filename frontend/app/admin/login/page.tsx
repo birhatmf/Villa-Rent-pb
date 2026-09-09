@@ -83,7 +83,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-10 w-full rounded-full bg-ink py-3.5 text-[0.92rem] text-canvas transition-colors hover:bg-olive disabled:opacity-50"
+            className="mt-10 w-full rounded-full bg-ink py-3.5 text-[0.92rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96] disabled:opacity-50"
           >
             {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
           </button>

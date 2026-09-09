@@ -139,7 +139,7 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
                     <NumberField label="Bebek" value={form.infants} onChange={(infants) => setForm({ ...form, infants })} />
                   </div>
                   <p className="mt-4 text-[0.76rem] leading-relaxed text-muted">Tarih değişince müsaitlik yeniden kontrol edilir ve fiyat güncel kurallarla tekrar hesaplanır.</p>
-                  <button disabled={busy || !form.from || !form.to} onClick={() => run(() => api.change(booking.id, { ...form, version: booking.version }), 'Konaklama bilgileri güncellendi.')} className="mt-5 rounded-full bg-ink px-6 py-2.5 text-[0.82rem] text-canvas hover:bg-olive disabled:opacity-40">{busy ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}</button>
+                  <button disabled={busy || !form.from || !form.to} onClick={() => run(() => api.change(booking.id, { ...form, version: booking.version }), 'Konaklama bilgileri güncellendi.')} className="mt-5 rounded-full bg-ink px-6 py-2.5 text-[0.82rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96] disabled:opacity-40">{busy ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}</button>
                 </div>
               ) : (
                 <dl className="grid gap-px bg-line sm:grid-cols-4">
@@ -207,7 +207,7 @@ export default function ReservationDetail({ id, scope = 'admin' }: { id: string;
                 <p className="eyebrow text-gold">Yeni talep</p>
                 <h2 className="mt-3 font-display text-xl font-light text-ink">Müsaitliği tekrar kontrol edin</h2>
                 <p className="mt-2 text-[0.8rem] leading-relaxed text-muted">Kabul anında stok ve fiyat yeniden hesaplanır; uygunsa müşteriye ödeme için 10 dakikalık bekletme açılır.</p>
-                <button disabled={busy} onClick={() => run(() => api.accept(booking.id), 'Talep sonucu güncellendi.')} className="mt-4 w-full rounded-full bg-ink px-5 py-2.5 text-[0.8rem] text-canvas disabled:opacity-40">Talebi kabul et</button>
+                <button disabled={busy} onClick={() => run(() => api.accept(booking.id), 'Talep sonucu güncellendi.')} className="mt-4 w-full rounded-full bg-ink px-5 py-2.5 text-[0.8rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96] disabled:opacity-40">Talebi kabul et</button>
                 <textarea value={declineRequestNote} onChange={(e) => setDeclineRequestNote(e.target.value)} minLength={2} maxLength={300} rows={2} placeholder="Red gerekçesi" className={`${INPUT} mt-4 resize-none`} />
                 <button disabled={busy || declineRequestNote.trim().length < 2} onClick={() => run(() => api.decline(booking.id, declineRequestNote), 'Talep reddedildi.')} className="mt-3 w-full rounded-full border border-red-200 px-5 py-2.5 text-[0.8rem] text-red-700 disabled:opacity-40">Talebi reddet</button>
               </section>
@@ -317,7 +317,7 @@ function ApprovalCard({ booking, busy, scope, onConfirm }: { booking: Booking; b
       <h2 className="mt-3 font-display text-xl font-light text-ink">{declared ? 'Havale kontrolü bekliyor' : 'Kapora bildirimi bekleniyor'}</h2>
       <p className="mt-3 text-[0.8rem] leading-relaxed text-muted">{declared ? `${formatPrice(booking.prepaymentAmount, booking.currency)} tutarındaki havaleyi banka hesabından doğrulayın. Onay verdiğinizde ödeme alınmış ve rezervasyon kesinleşmiş sayılır.` : 'Misafir henüz havale yaptığını bildirmedi. Ödeme başka bir kanaldan doğrulanmadıysa bekleyin.'}</p>
       <div className="mt-4 rounded-xl bg-surface/80 px-4 py-3"><p className="eyebrow text-muted">Havale açıklaması</p><p className="mt-1 font-mono text-[0.9rem] tracking-wide text-ink">{reference(booking.id)}</p></div>
-      <button disabled={busy} onClick={onConfirm} className={`mt-5 w-full rounded-full px-5 py-3 text-[0.82rem] text-white disabled:opacity-40 ${declared ? 'bg-olive hover:bg-olive/90' : 'bg-ink hover:bg-olive'}`}>{busy ? 'İşleniyor…' : declared ? 'Havaleyi doğrula ve onayla' : 'Ödeme olmadan onayla'}</button>
+      <button disabled={busy} onClick={onConfirm} className={`mt-5 w-full rounded-full px-5 py-3 text-[0.82rem] text-white transition-[background-color,transform] active:scale-[0.96] disabled:opacity-40 ${declared ? 'bg-olive hover:bg-olive/90' : 'bg-ink hover:bg-olive'}`}>{busy ? 'İşleniyor…' : declared ? 'Havaleyi doğrula ve onayla' : 'Ödeme olmadan onayla'}</button>
     </section>
   );
 }
@@ -384,7 +384,7 @@ function ServiceRequestCard({ request, booking, api, scope, onReload }: { reques
         <div className="mt-4 border-t border-line pt-4">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={2} placeholder="Karar notu" className={`${INPUT} resize-none`} />
           {scope === 'admin' && request.type === 'CANCELLATION' && <Field label="Tahmini manuel iade"><input type="number" min={0} max={booking.prepaymentAmount} value={refundAmount} onChange={(e) => setRefundAmount(Number(e.target.value))} className={`${INPUT} mt-3`} /></Field>}
-          <div className="mt-3 flex gap-2"><button disabled={busy} onClick={() => resolve('APPROVED')} className="rounded-full bg-ink px-5 py-2 text-[0.76rem] text-canvas disabled:opacity-40">Onayla</button><button disabled={busy || note.trim().length < 2} onClick={() => resolve('REJECTED')} className="rounded-full border border-red-200 px-5 py-2 text-[0.76rem] text-red-700 disabled:opacity-40">Reddet</button></div>
+          <div className="mt-3 flex gap-2"><button disabled={busy} onClick={() => resolve('APPROVED')} className="rounded-full bg-ink px-5 py-2 text-[0.76rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96] disabled:opacity-40">Onayla</button><button disabled={busy || note.trim().length < 2} onClick={() => resolve('REJECTED')} className="rounded-full border border-red-200 px-5 py-2 text-[0.76rem] text-red-700 disabled:opacity-40">Reddet</button></div>
         </div>
       )}
       {scope === 'host' && request.status === 'PENDING' && request.type === 'CANCELLATION' && <p className="mt-3 text-[0.78rem] text-muted">Kapora iadesi nedeniyle bu talebi yönetim sonuçlandırır.</p>}

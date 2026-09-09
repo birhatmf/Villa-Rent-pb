@@ -123,13 +123,13 @@ echo "  ✓ müşteri admin uçlarında 403"
 
 # Aynı e-posta ikinci kez kabul edilmemeli.
 CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Kopya\",\"email\":\"$CUST_MAIL\",\"password\":\"$CUST_PASS\",\"kvkkAccepted\":true}")
+  -d "{\"name\":\"Kopya\",\"email\":\"$CUST_MAIL\",\"phone\":\"05550000000\",\"password\":\"$CUST_PASS\",\"kvkkAccepted\":true}")
 [ "$CODE" = "409" ] || fail "aynı e-posta ikinci kez kabul edildi (HTTP $CODE)"
 echo "  ✓ tekrar kayıt 409"
 
 # KVKK onayı zorunlu.
 CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Onaysiz\",\"email\":\"nokvkk-$$@example.test\",\"password\":\"$CUST_PASS\",\"kvkkAccepted\":false}")
+  -d "{\"name\":\"Onaysiz\",\"email\":\"nokvkk-$$@example.test\",\"phone\":\"05550000000\",\"password\":\"$CUST_PASS\",\"kvkkAccepted\":false}")
 [ "$CODE" = "400" ] || fail "KVKK onayı olmadan kayıt kabul edildi (HTTP $CODE)"
 echo "  ✓ KVKK onayı olmadan kayıt 400"
 

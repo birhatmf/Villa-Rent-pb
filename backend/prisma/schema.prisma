@@ -20,8 +20,8 @@ enum Role {
   ADMIN
 }
 
-/// Tek tablo + rol: bir üye hem misafir hem ev sahibi olabilir,
-/// ikinci bir auth sistemi gerekmez.
+/// Tek tablo + tek rol: her hesap yalnızca GUEST, HOST veya ADMIN olabilir.
+/// Ev sahibi onayı GUEST hesabını HOST rolüne geçirir.
 model User {
   id             String    @id @default(cuid())
   email          String    @unique
@@ -661,8 +661,8 @@ enum DocumentType {
 }
 
 /// "Villa Kayıt ve Ön Başvuru Formu" — 7464 sayılı Kanun kapsamındaki resmi
-/// alanları birebir taşır. Başvuru sahibi kayıtlı kullanıcı olmak zorunda değil;
-/// onay sonrası ev sahibi hesabına bağlama ayrı bir modülde (Ev sahipleri) yapılacak.
+/// alanları birebir taşır. Başvuru kayıtlı bir GUEST hesabına bağlı açılır;
+/// admin onayı aynı hesabı atomik olarak HOST rolüne geçirir.
 model HostApplication {
   id     String            @id @default(cuid())
   status ApplicationStatus @default(PENDING)
@@ -692,8 +692,7 @@ model HostApplication {
   reviewedAt DateTime?
   reviewedBy String?
 
-  // Onboarding bağlama: onaylı başvuru gerçek bir HOST hesabına bağlanır.
-  // Başvuru kalıcı kaynak kayıt olarak kalır — alanları başka yere kopyalanmaz.
+  // Başvuruyu açan hesap. Onay sırasında bu kullanıcının rolü HOST olur.
   linkedHostId String?
   linkedHost   User?   @relation(fields: [linkedHostId], references: [id], onDelete: SetNull)
 

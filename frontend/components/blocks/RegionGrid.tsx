@@ -20,7 +20,7 @@ export default function RegionGrid({ content }: { content: Record<string, any> }
       <div className="mt-14 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <Card region={lead} className="col-span-2 row-span-2 aspect-square md:aspect-auto" featured />
         {rest.map((r, i) => (
-          <Card key={r.id} region={r} className="aspect-[4/5]" delay={(i + 1) * 60} />
+          <Card key={r.id} region={r} className="aspect-[4/5]" delay={Math.min(i + 1, 6) * 60} />
         ))}
       </div>
     </Shell>
@@ -42,14 +42,14 @@ function Card({
     <Link
       href={`/bolgeler/${region.slug}`}
       style={{ transitionDelay: `${delay}ms` }}
-      className={`reveal group relative overflow-hidden rounded-xl bg-sand ${className}`}
+      className={`reveal group relative overflow-hidden rounded-xl bg-sand ring-1 ring-black/10 ${className}`}
     >
       <Image
         src={region.image}
         alt={region.name}
         fill
         sizes={featured ? '(max-width: 768px) 100vw, 50vw' : '(max-width: 768px) 50vw, 25vw'}
-        className="object-cover transition-transform duration-[1200ms] ease-[var(--ease-out-soft)] group-hover:scale-[1.07]"
+        className="object-cover transition-transform duration-[1200ms] ease-[var(--ease-out-soft)] group-hover:scale-105"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 

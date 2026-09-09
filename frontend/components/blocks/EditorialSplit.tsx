@@ -6,7 +6,7 @@ export default function EditorialSplit({ content }: { content: Record<string, an
   return (
     <Shell>
       <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
-        <div className="reveal relative aspect-[4/5] overflow-hidden rounded-xl bg-sand lg:aspect-[5/6]">
+        <div className="reveal relative aspect-[4/5] overflow-hidden rounded-xl bg-sand ring-1 ring-black/10 lg:aspect-[5/6]">
           <Image
             src={content.image}
             alt=""

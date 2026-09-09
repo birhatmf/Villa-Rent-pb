@@ -252,6 +252,18 @@ function VillaPicker({
   const [q, setQ] = useState('');
   const [rows, setRows] = useState<VillaListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  function requestClose() {
+    if (!visible) return;
+    setVisible(false);
+    window.setTimeout(onClose, 200);
+  }
 
   const load = useCallback(() => {
     api.list({ status: 'PUBLISHED', q, pageSize: 100 })
@@ -265,21 +277,29 @@ function VillaPicker({
   }, [load, q]);
 
   useEffect(() => {
-    const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const close = (e: KeyboardEvent) => e.key === 'Escape' && requestClose();
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [onClose]);
+  });
 
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-ink/35" role="dialog" aria-modal="true" aria-label="Öne çıkan villa ekle">
-      <button className="min-w-0 flex-1 cursor-default" onClick={onClose} aria-label="Pencereyi kapat" />
-      <aside className="flex h-full w-full max-w-lg flex-col bg-canvas shadow-2xl">
+      <button
+        className={`min-w-0 flex-1 cursor-default transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+        onClick={requestClose}
+        aria-label="Pencereyi kapat"
+      />
+      <aside
+        className={`flex h-full w-full max-w-lg flex-col bg-canvas shadow-2xl transition-transform duration-200 ease-out ${
+          visible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
         <header className="flex items-center justify-between border-b border-line bg-surface px-5 py-4">
           <div>
             <p className="font-display text-xl font-light text-ink">Villa ekle</p>
             <p className="mt-0.5 text-[0.75rem] text-muted">Yalnızca yayındaki villalar listelenir</p>
           </div>
-          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-muted hover:bg-sand hover:text-ink" aria-label="Kapat">×</button>
+          <button onClick={requestClose} className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-muted hover:bg-sand hover:text-ink" aria-label="Kapat">×</button>
         </header>
         <div className="border-b border-line p-4">
           <input
@@ -301,7 +321,7 @@ function VillaPicker({
                 onClick={() => onAdd(villa)}
                 className="flex w-full items-center gap-3 rounded-lg p-2.5 text-left transition-colors hover:bg-sand/60 disabled:opacity-40"
               >
-                <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-sand-deep">
+                <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-sand-deep ring-1 ring-black/10">
                   {villa.images[0]?.url && <Image src={villa.images[0].url} alt="" fill sizes="80px" className="object-cover" />}
                 </div>
                 <span className="min-w-0 flex-1">

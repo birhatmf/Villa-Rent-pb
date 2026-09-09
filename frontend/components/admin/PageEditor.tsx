@@ -222,7 +222,7 @@ export default function PageEditor({ slug }: { slug: string }) {
           <button
             onClick={save}
             disabled={!hasChanges || saving}
-            className="rounded-full bg-ink px-5 py-2 text-[0.85rem] text-canvas transition-colors hover:bg-olive disabled:opacity-35"
+            className="rounded-full bg-ink px-5 py-2 text-[0.85rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96] disabled:opacity-35"
           >
             {saving ? 'Kaydediliyor…' : 'Kaydet'}
           </button>

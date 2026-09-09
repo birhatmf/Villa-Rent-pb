@@ -81,7 +81,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ sl
           </div>
           {/* Fiyat başlığın hemen yanında: sayfanın altına inmeden görünür. */}
           <div className="shrink-0 text-right">
-            <p className="font-display text-[clamp(1.5rem,2.6vw,2rem)] font-light leading-none text-ink">{priceLabel}</p>
+            <p className="font-display text-[clamp(1.5rem,2.6vw,2rem)] font-light leading-none text-ink tabular-nums">{priceLabel}</p>
             <p className="mt-1.5 text-[0.8rem] text-muted">gecelik · sezona göre değişir</p>
             {villa.rating > 0 && (
               <p className="mt-2 text-[0.85rem] text-ink">

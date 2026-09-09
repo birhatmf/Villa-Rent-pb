@@ -52,13 +52,11 @@ function stripHostOnlyFields(dto: VillaInputDto): VillaInputDto {
 }
 
 /**
- * Admin da bu uçlara erişebilir (destek/müdahale için) ama `hostId` her zaman
- * kendi kullanıcı id'sine sabitlenir — admin burada kendi villası gibi davranır,
- * başka host'un villasını görmek için admin/villalar uçları var.
+ * Admin işlemleri ayrı admin/villalar uçlarından yürütülür.
  */
 @Controller('host/villas')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostVillasController {
   constructor(
     private villas: VillasService,

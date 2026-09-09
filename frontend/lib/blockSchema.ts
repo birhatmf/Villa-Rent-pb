@@ -41,7 +41,7 @@ export const BLOCK_SCHEMAS: Record<string, BlockSchema> = {
         type: 'list',
         itemLabel: 'Görsel',
         fields: [
-          { key: 'image', label: 'Görsel URL', type: 'image' },
+          { key: 'image', label: 'Görsel', type: 'image' },
           { key: 'caption', label: 'Alt yazı', type: 'text', placeholder: 'Villa Adı · Bölge' },
         ],
         defaultItem: { image: '', caption: '' },
@@ -141,7 +141,7 @@ export const BLOCK_SCHEMAS: Record<string, BlockSchema> = {
       { key: 'eyebrow', label: 'Üst başlık', type: 'text' },
       { key: 'title', label: 'Başlık', type: 'text' },
       { key: 'body', label: 'Metin', type: 'textarea' },
-      { key: 'image', label: 'Görsel URL', type: 'image' },
+      { key: 'image', label: 'Görsel', type: 'image' },
       { key: 'ctaLabel', label: 'Bağlantı yazısı', type: 'text' },
       { key: 'ctaHref', label: 'Bağlantı', type: 'text' },
     ],

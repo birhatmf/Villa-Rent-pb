@@ -117,7 +117,7 @@ export default function VillaBooking({
 
   const quote = result?.quote ?? null;
   // Dış takvim doğrulanamadıysa kesin rezervasyon yok ama talep akışı açık kalır.
-  const syncOnly = Boolean(result && !result.available && result.reasons.every((reason) => reason === 'SYNC_UNHEALTHY'));
+  const syncOnly = Boolean(result && !result.available && result.reasons.length > 0 && result.reasons.every((reason) => reason === 'SYNC_UNHEALTHY'));
   const bookable = Boolean(result?.available && result.bookingMode === 'INSTANT');
   const requestable = Boolean(result && (syncOnly || (result.available && result.bookingMode === 'REQUEST')));
   const reserveHref = `/rezervasyon/yeni?${new URLSearchParams({
@@ -141,7 +141,7 @@ export default function VillaBooking({
               </p>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setMonth(addMonths(month, -1))} aria-label="Önceki ay" className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">‹</button>
-                <button type="button" onClick={() => setMonth(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)))} className="text-[0.76rem] text-muted hover:text-ink">Bugün</button>
+                <button type="button" onClick={() => setMonth(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)))} className="rounded-md px-2 py-1 text-[0.76rem] text-muted transition-colors hover:text-ink">Bugün</button>
                 <button type="button" onClick={() => setMonth(addMonths(month, 1))} aria-label="Sonraki ay" className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">›</button>
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function VillaBooking({
         <aside className="h-fit space-y-5 rounded-2xl border border-line bg-surface p-6 lg:sticky lg:top-28">
           <div>
             <p className="eyebrow text-muted">{quote ? `${result?.nights} gece toplam` : 'Gecelik fiyat'}</p>
-            <p className="mt-1.5 font-display text-[1.7rem] leading-tight text-ink">
+            <p className="mt-1.5 font-display text-[1.7rem] leading-tight text-ink tabular-nums">
               {quote
                 ? formatPrice(quote.totalAmount, quote.currency)
                 : villa.priceRange.min === villa.priceRange.max
@@ -209,11 +209,11 @@ export default function VillaBooking({
           )}
 
           {bookable ? (
-            <Link href={reserveHref} className="block rounded-full bg-ink py-3 text-center text-[0.9rem] text-canvas transition-colors hover:bg-olive">
+            <Link href={reserveHref} className="block rounded-full bg-ink py-3 text-center text-[0.9rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">
               Rezervasyona devam et
             </Link>
           ) : requestable ? (
-            <Link href={requestHref} className="block rounded-full border border-ink py-3 text-center text-[0.9rem] text-ink transition-colors hover:bg-ink hover:text-canvas">
+            <Link href={requestHref} className="block rounded-full border border-ink py-3 text-center text-[0.9rem] text-ink transition-[background-color,transform] hover:bg-ink hover:text-canvas active:scale-[0.96]">
               Rezervasyon talebi gönder
             </Link>
           ) : (
@@ -236,7 +236,7 @@ export default function VillaBooking({
       {/* Mobilde fiyat ve buton tüm gezinme boyunca görünür kalır. */}
       <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t border-line bg-surface/95 px-5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] pt-3.5 backdrop-blur-sm lg:hidden">
         <div className="min-w-0">
-          <p className="truncate font-display text-lg text-ink">
+          <p className="truncate font-display text-lg text-ink tabular-nums">
             {quote
               ? formatPrice(quote.totalAmount, quote.currency)
               : villa.priceRange.min === villa.priceRange.max
@@ -246,9 +246,9 @@ export default function VillaBooking({
           <p className="text-[0.76rem] text-muted">{quote ? `${result?.nights} gece toplam` : '/ gece'}</p>
         </div>
         {bookable ? (
-          <Link href={reserveHref} className="shrink-0 rounded-full bg-ink px-6 py-3 text-[0.88rem] text-canvas">Devam et</Link>
+          <Link href={reserveHref} className="shrink-0 rounded-full bg-ink px-6 py-3 text-[0.88rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">Devam et</Link>
         ) : requestable ? (
-          <Link href={requestHref} className="shrink-0 rounded-full border border-ink px-6 py-3 text-[0.88rem] text-ink">Talep gönder</Link>
+          <Link href={requestHref} className="shrink-0 rounded-full border border-ink px-6 py-3 text-[0.88rem] text-ink transition-[background-color,transform] hover:bg-ink hover:text-canvas active:scale-[0.96]">Talep gönder</Link>
         ) : (
           <span className="shrink-0 rounded-full bg-ink/25 px-6 py-3 text-[0.88rem] text-canvas">Tarih seçin</span>
         )}
@@ -359,7 +359,7 @@ function Line({ label, value, strong = false }: { label: string; value: string; 
   return (
     <div className={`flex items-baseline justify-between gap-3 ${strong ? 'border-t border-line pt-2 text-ink' : 'text-muted'}`}>
       <dt>{label}</dt>
-      <dd className={strong ? 'font-display text-[1.05rem] text-ink' : 'text-ink'}>{value}</dd>
+      <dd className={strong ? 'font-display text-[1.05rem] text-ink tabular-nums' : 'text-ink tabular-nums'}>{value}</dd>
     </div>
   );
 }

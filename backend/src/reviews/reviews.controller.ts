@@ -19,6 +19,7 @@ export class PublicReviewsController {
 
 @Controller('reviews')
 @UseGuards(JwtGuard, RolesGuard)
+@Roles('GUEST')
 export class CustomerReviewsController {
   constructor(private reviews: ReviewsService) {}
 
@@ -40,6 +41,7 @@ export class CustomerReviewsController {
 
 @Controller('bookings')
 @UseGuards(JwtGuard, RolesGuard)
+@Roles('GUEST')
 export class BookingReviewsController {
   constructor(private reviews: ReviewsService) {}
 
@@ -51,7 +53,7 @@ export class BookingReviewsController {
 
 @Controller('host/reviews')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostReviewsController {
   constructor(private reviews: ReviewsService) {}
 

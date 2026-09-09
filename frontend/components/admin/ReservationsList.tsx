@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatPrice } from '@/lib/api';
-import { bookingApi, type Booking, type BookingListParams, type BookingListResult } from '@/lib/bookingApi';
+import { bookingApi, hostBookingApi, type Booking, type BookingApiClient, type BookingListParams, type BookingListResult } from '@/lib/bookingApi';
 import { createVillaApi } from '@/lib/villaApi';
 
 const INPUT = 'rounded-lg border border-line bg-surface px-3 py-2.5 text-[0.82rem] text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-olive-soft focus-visible:ring-2 focus-visible:ring-olive/15';
@@ -31,18 +31,36 @@ const PAYMENT_LABEL: Record<Booking['paymentStatus'], string> = {
   DECLARED: 'Havale bildirildi',
   PAID: 'Ödeme doğrulandı',
 };
+const STATUS_FILTERS = [
+  ['', 'Tüm rezervasyonlar'],
+  ['REQUESTED', 'Yeni talepler'],
+  ['HOLD', 'Onay bekleyen'],
+  ['CONFIRMED', 'Onaylanan'],
+  ['CANCELLED', 'İptal edilen'],
+  ['EXPIRED', 'Süresi dolan'],
+  ['DECLINED', 'Reddedilen'],
+  ['WITHDRAWN', 'Geri çekilen'],
+] as const;
 
 type Filters = Pick<BookingListParams, 'q' | 'status' | 'paymentStatus' | 'channel' | 'villaId' | 'from' | 'to'>;
 const EMPTY_FILTERS: Filters = { q: '', status: '', paymentStatus: '', channel: '', villaId: '', from: '', to: '' };
 
-export default function ReservationsList() {
-  const villaApi = useMemo(() => createVillaApi('admin'), []);
+export default function ReservationsList({ scope = 'admin' }: { scope?: 'admin' | 'host' }) {
+  const api: BookingApiClient = scope === 'admin' ? bookingApi : hostBookingApi;
+  const villaApi = useMemo(() => createVillaApi(scope), [scope]);
+  const detailBase = scope === 'admin' ? '/admin/rezervasyonlar' : '/hesabim/ev-sahibi/rezervasyonlar';
+  const calendarHref = scope === 'admin' ? '/admin/takvim' : '/hesabim/ev-sahibi/takvim';
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<BookingListResult | null>(null);
   const [villas, setVillas] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('status');
+    if (requested && requested in STATUS_LABEL) setFilters((current) => ({ ...current, status: requested }));
+  }, []);
 
   useEffect(() => {
     villaApi.list({ pageSize: 100 })
@@ -54,13 +72,13 @@ export default function ReservationsList() {
     setLoading(true);
     setError(null);
     try {
-      setData(await bookingApi.list({ ...filters, page, pageSize: 20 }));
+      setData(await api.list({ ...filters, page, pageSize: 20 }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Rezervasyonlar yüklenemedi.');
     } finally {
       setLoading(false);
     }
-  }, [filters, page]);
+  }, [api, filters, page]);
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), filters.q ? 300 : 0);
@@ -81,27 +99,18 @@ export default function ReservationsList() {
         <div>
           <p className="eyebrow text-gold">Operasyon</p>
           <div className="mt-1 flex items-baseline gap-2.5">
-            <h1 className="font-display text-2xl font-light tracking-[-0.02em] text-ink">Rezervasyonlar</h1>
+            <h1 className="font-display text-2xl font-light tracking-[-0.02em] text-ink">{scope === 'admin' ? 'Rezervasyonlar' : 'Gelen rezervasyonlar'}</h1>
             {data && <span className="text-[0.82rem] text-muted">{data.total} kayıt</span>}
           </div>
         </div>
-        <Link href="/admin/takvim" className="rounded-full border border-ink/20 px-4 py-2 text-[0.8rem] text-ink transition-colors hover:border-ink hover:bg-ink hover:text-canvas">
+        <Link href={calendarHref} className="rounded-full border border-ink/20 px-4 py-2 text-[0.8rem] text-ink transition-colors hover:border-ink hover:bg-ink hover:text-canvas">
           Takvim görünümü
         </Link>
       </header>
 
       <div className="shrink-0 border-b border-line bg-sand/20 px-5 py-4 sm:px-7">
         <div className="flex flex-wrap gap-2">
-          {([
-            ['', 'Tüm rezervasyonlar'],
-            ['REQUESTED', 'Yeni talepler'],
-            ['HOLD', 'Onay bekleyen'],
-            ['CONFIRMED', 'Onaylanan'],
-            ['CANCELLED', 'İptal edilen'],
-            ['EXPIRED', 'Süresi dolan'],
-            ['DECLINED', 'Reddedilen'],
-            ['WITHDRAWN', 'Geri çekilen'],
-          ] as const).map(([value, label]) => (
+          {STATUS_FILTERS.map(([value, label]) => (
             <button key={value} onClick={() => set('status', value)} className={`rounded-full px-3.5 py-1.5 text-[0.76rem] transition-colors ${filters.status === value ? 'bg-ink text-canvas' : 'border border-line bg-surface text-muted hover:border-ink hover:text-ink'}`}>
               {label}
             </button>
@@ -147,13 +156,13 @@ export default function ReservationsList() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((booking) => <ReservationRow key={booking.id} booking={booking} />)}
+              {data?.items.map((booking) => <ReservationRow key={booking.id} booking={booking} detailBase={detailBase} />)}
             </tbody>
           </table>
         </div>
 
         <div className="divide-y divide-line lg:hidden">
-          {data?.items.map((booking) => <ReservationCard key={booking.id} booking={booking} />)}
+          {data?.items.map((booking) => <ReservationCard key={booking.id} booking={booking} detailBase={detailBase} />)}
         </div>
 
         {!loading && data?.items.length === 0 && (
@@ -178,11 +187,11 @@ export default function ReservationsList() {
   );
 }
 
-function ReservationRow({ booking }: { booking: Booking }) {
+function ReservationRow({ booking, detailBase }: { booking: Booking; detailBase: string }) {
   return (
     <tr className={`border-b border-line/70 transition-colors hover:bg-sand/35 ${booking.paymentStatus === 'DECLARED' && booking.status === 'HOLD' ? 'bg-gold/[0.045]' : ''}`}>
       <td className="py-4 pl-7 pr-5">
-        <Link href={`/admin/rezervasyonlar/${booking.id}`} className="font-medium text-ink hover:text-gold">{reference(booking.id)}</Link>
+        <Link href={`${detailBase}/${booking.id}`} className="font-medium text-ink hover:text-gold">{reference(booking.id)}</Link>
         <p className="mt-1 text-[0.72rem] text-muted">{booking.channel === 'WEBSITE' ? 'Web sitesi' : 'Yönetim paneli'} · {shortDateTime(booking.createdAt)}</p>
       </td>
       <td className="px-5 py-4">
@@ -196,14 +205,14 @@ function ReservationRow({ booking }: { booking: Booking }) {
       <td className="px-5 py-4 text-[0.84rem] text-ink">{formatPrice(booking.totalAmount, booking.currency)}</td>
       <td className="px-5 py-4"><PaymentBadge booking={booking} /></td>
       <td className="px-5 py-4"><StatusBadge status={booking.status} /></td>
-      <td className="py-4 pl-5 pr-7 text-right"><Link href={`/admin/rezervasyonlar/${booking.id}`} aria-label="Rezervasyon detayını aç" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">→</Link></td>
+      <td className="py-4 pl-5 pr-7 text-right"><Link href={`${detailBase}/${booking.id}`} aria-label="Rezervasyon detayını aç" className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">→</Link></td>
     </tr>
   );
 }
 
-function ReservationCard({ booking }: { booking: Booking }) {
+function ReservationCard({ booking, detailBase }: { booking: Booking; detailBase: string }) {
   return (
-    <Link href={`/admin/rezervasyonlar/${booking.id}`} className="block bg-surface px-5 py-5 hover:bg-sand/30">
+    <Link href={`${detailBase}/${booking.id}`} className="block bg-surface px-5 py-5 hover:bg-sand/30">
       <div className="flex items-start justify-between gap-4">
         <div><p className="text-[0.75rem] font-medium tracking-[0.08em] text-gold">{reference(booking.id)}</p><p className="mt-1 text-[0.95rem] text-ink">{booking.customerName || 'İsimsiz misafir'}</p></div>
         <StatusBadge status={booking.status} />

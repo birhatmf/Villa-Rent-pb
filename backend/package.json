@@ -15,6 +15,7 @@
     "test:ical-security": "ts-node test/ical-security.ts",
     "test:ical-sync": "ts-node test/ical-sync.ts",
     "db:push": "prisma db push",
+    "db:create-admin": "node --env-file=.env -r ts-node/register prisma/create-admin.ts",
     "db:seed": "ts-node prisma/seed.ts",
     "db:studio": "prisma studio"
   },

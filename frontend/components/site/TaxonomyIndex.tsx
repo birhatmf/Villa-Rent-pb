@@ -39,7 +39,7 @@ export default function TaxonomyIndex({ kind, items }: Props) {
             key={item.id}
             href={`/${base}/${item.slug}`}
             style={{ transitionDelay: `${Math.min(index, 5) * 60}ms` }}
-            className={`reveal group relative overflow-hidden rounded-xl bg-sand-deep focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-olive ${index === 0 ? 'sm:row-span-2 lg:col-span-2' : ''}`}
+            className={`reveal group relative overflow-hidden rounded-xl bg-sand-deep ring-1 ring-black/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-olive ${index === 0 ? 'sm:row-span-2 lg:col-span-2' : ''}`}
           >
             <Image
               src={item.image}
@@ -47,7 +47,7 @@ export default function TaxonomyIndex({ kind, items }: Props) {
               fill
               priority={index === 0}
               sizes={index === 0 ? '(max-width: 640px) 100vw, 66vw' : '(max-width: 640px) 100vw, 33vw'}
-              className="object-cover transition-transform duration-[1200ms] ease-[var(--ease-out-soft)] group-hover:scale-[1.05]"
+              className="object-cover transition-transform duration-[1200ms] ease-[var(--ease-out-soft)] group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6 text-white lg:p-8">
@@ -63,7 +63,7 @@ export default function TaxonomyIndex({ kind, items }: Props) {
       </section>
 
       <div className="mt-14 border-t border-line pt-8 text-center">
-        <Link href="/villalar" className="inline-flex min-h-12 items-center rounded-lg bg-ink px-7 py-3 text-sm text-canvas transition-colors hover:bg-olive">Tüm villaları görün <span aria-hidden="true" className="ml-3">→</span></Link>
+        <Link href="/villalar" className="inline-flex min-h-12 items-center rounded-full bg-ink px-7 py-3 text-sm text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">Tüm villaları görün <span aria-hidden="true" className="ml-3">→</span></Link>
       </div>
     </div>
   );

@@ -1,13 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import AuthShell, { AuthLink, fieldCls } from '@/components/site/AuthShell';
 import { register } from '@/lib/authApi';
+import { safeInternalPath } from '@/lib/navigation';
 
 export default function KayitPage() {
+  return (
+    <Suspense>
+      <KayitForm />
+    </Suspense>
+  );
+}
+
+function KayitForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', passwordConfirm: '' });
   const [kvkk, setKvkk] = useState(false);
   const [marketing, setMarketing] = useState(false);
@@ -34,7 +44,7 @@ export default function KayitPage() {
         kvkkAccepted: kvkk,
         marketingOptIn: marketing,
       });
-      router.replace('/hesabim');
+      router.replace(safeInternalPath(params.get('next'), '/hesabim'));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Kayıt oluşturulamadı.');
@@ -50,7 +60,7 @@ export default function KayitPage() {
       image="https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1400&q=80"
       footer={
         <>
-          Zaten üye misiniz? <AuthLink href="/giris">Giriş yapın</AuthLink>
+          Zaten üye misiniz? <AuthLink href={params.get('next') ? `/giris?next=${encodeURIComponent(params.get('next')!)}` : '/giris'}>Giriş yapın</AuthLink>
         </>
       }
     >
@@ -84,6 +94,7 @@ export default function KayitPage() {
             <span className="eyebrow text-muted">Telefon</span>
             <input
               type="tel"
+              required
               autoComplete="tel"
               placeholder="0555 000 00 00"
               value={form.phone}

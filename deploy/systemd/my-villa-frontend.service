@@ -1,0 +1,19 @@
+[Unit]
+Description=My Villa Next.js frontend
+After=network.target my-villa-backend.service
+
+[Service]
+Type=simple
+User=myvilla
+Group=myvilla
+WorkingDirectory=/srv/my-villa/frontend
+EnvironmentFile=/srv/my-villa/frontend/.env.production
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -12,6 +12,7 @@
   --color-olive: #46553f;
   --color-olive-soft: #7d8b74;
   --color-gold: #a8834e;
+  --color-whatsapp: #25d366;
 
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -34,6 +35,11 @@
   ::selection {
     background-color: var(--color-olive);
     color: var(--color-canvas);
+  }
+
+  :where(a, button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--color-olive);
+    outline-offset: 2px;
   }
 }
 
@@ -59,6 +65,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .reveal {
     opacity: 1;
     transform: none;

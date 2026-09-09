@@ -229,7 +229,7 @@ export default function BookingCalendar({ scope = 'admin' }: { scope?: 'admin' |
                   {days.map((day) => {
                     const current = iso(day) === iso(new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())));
                     return <div key={iso(day)} className={`border-l border-line/70 py-2 text-center ${current ? 'bg-gold/10' : ''}`}>
-                      <p className="text-[0.62rem] uppercase text-muted">{WEEKDAYS[day.getUTCDay()]}</p>
+                      <p className="text-[0.7rem] uppercase text-muted">{WEEKDAYS[day.getUTCDay()]}</p>
                       <p className={`mt-0.5 text-[0.78rem] ${current ? 'font-semibold text-gold' : 'text-ink'}`}>{day.getUTCDate()}</p>
                     </div>;
                   })}
@@ -286,7 +286,7 @@ export default function BookingCalendar({ scope = 'admin' }: { scope?: 'admin' |
               </section>
             ) : (
               <section className="rounded-xl border border-line bg-surface p-5">
-                <div className="flex rounded-lg bg-sand p-1">
+                <div className="flex rounded-xl bg-sand p-1.5">
                   <ModeButton active={mode === 'BOOKING'} onClick={() => setMode('BOOKING')}>Rezervasyon</ModeButton>
                   <ModeButton active={mode === 'BLOCK'} onClick={() => setMode('BLOCK')}>Tarih kapat</ModeButton>
                 </div>

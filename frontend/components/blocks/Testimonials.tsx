@@ -12,7 +12,7 @@ export default function Testimonials({ content }: { content: Record<string, any>
           <figure
             key={t.author}
             className="reveal flex flex-col border-t border-line pt-8"
-            style={{ transitionDelay: `${i * 110}ms` }}
+            style={{ transitionDelay: `${Math.min(i, 5) * 110}ms` }}
           >
             <span aria-hidden className="font-display text-4xl leading-none text-gold/50">
               &ldquo;

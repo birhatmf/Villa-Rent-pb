@@ -1,12 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma.service';
 import { UPLOAD_ROOT, VillasService } from './villas.service';
-
-const PUBLIC_URL = process.env.PUBLIC_URL ?? 'http://localhost:4000';
 
 const ALLOWED_MIME: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -19,6 +18,7 @@ export class VillaImagesService {
   constructor(
     private prisma: PrismaService,
     private villas: VillasService,
+    private config: ConfigService,
   ) {}
 
   /** Görseller herkese açık servis edilir (host-application belgelerinin aksine) — pazarlama fotoğrafı. */
@@ -47,7 +47,7 @@ export class VillaImagesService {
       data: {
         villaId,
         category: category as any,
-        url: `${PUBLIC_URL}/uploads/villas/${villaId}/${storedName}`,
+        url: `${this.publicUrl()}/uploads/villas/${villaId}/${storedName}`,
         storedName,
         fileName: file.originalname.slice(0, 200),
         mimeType: file.mimetype,
@@ -90,5 +90,9 @@ export class VillaImagesService {
     const image = await this.prisma.villaImage.findUnique({ where: { id: imageId } });
     if (!image || image.villaId !== villaId) throw new NotFoundException('Görsel bulunamadı.');
     return image;
+  }
+
+  private publicUrl() {
+    return (this.config.get<string>('PUBLIC_URL') ?? 'http://localhost:4000').replace(/\/$/, '');
   }
 }

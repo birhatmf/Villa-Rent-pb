@@ -52,7 +52,7 @@ export default function TaxonomyDetail({ kind, item, listing }: {
           <div className="rounded-2xl bg-sand/50 px-6 py-20 text-center">
             <h2 className="font-display text-3xl font-light">Bu seçkide henüz yayınlanmış villa yok.</h2>
             <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted">Yeni evler hazırlanırken diğer bölgeleri ve konseptleri keşfedebilirsiniz.</p>
-            <Link href="/villalar" className="mt-7 inline-block rounded-lg bg-ink px-6 py-3.5 text-sm text-canvas hover:bg-olive">Tüm villaları gör</Link>
+            <Link href="/villalar" className="mt-7 inline-block rounded-full bg-ink px-6 py-3.5 text-sm text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">Tüm villaları gör</Link>
           </div>
         )}
       </main>

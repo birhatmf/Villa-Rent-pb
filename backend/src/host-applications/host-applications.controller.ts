@@ -4,6 +4,7 @@ import {
   Param,
   ParseEnumPipe,
   Post,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -12,7 +13,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { DocumentType, OwnershipType } from '@prisma/client';
 import {
-  IsEmail,
   IsIn,
   IsInt,
   IsOptional,
@@ -22,6 +22,9 @@ import {
   Min,
 } from 'class-validator';
 import { memoryStorage } from 'multer';
+import type { Request } from 'express';
+import { JwtGuard } from '../auth/jwt.guard';
+import { Roles, RolesGuard } from '../auth/roles.guard';
 import { HostApplicationsService, MAX_FILE_SIZE } from './host-applications.service';
 
 const OWNERSHIP_TYPES = ['SOLE', 'SHARED', 'SITE'] as const;
@@ -43,8 +46,6 @@ const IBAN_RE = /^TR[0-9]{24}$/;
 class CreateApplicationDto {
   @IsString() @Length(2, 150) ownerName!: string;
   @IsString() @Length(4, 30) ownerIdNumber!: string;
-  @IsString() @Length(6, 30) phone!: string;
-  @IsEmail() email!: string;
   @IsOptional() @IsString() @Length(0, 120) uetsAddress?: string;
 
   @IsString()
@@ -63,14 +64,15 @@ class CreateApplicationDto {
 }
 
 @Controller('host-applications')
-@UseGuards(ThrottlerGuard)
+@UseGuards(JwtGuard, RolesGuard, ThrottlerGuard)
+@Roles('GUEST')
 export class HostApplicationsController {
   constructor(private apps: HostApplicationsService) {}
 
   @Post()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  create(@Body() dto: CreateApplicationDto) {
-    return this.apps.create({ ...dto, iban: dto.iban.toUpperCase() });
+  create(@Body() dto: CreateApplicationDto, @Req() req: Request & { user: { sub: string } }) {
+    return this.apps.create(req.user.sub, { ...dto, iban: dto.iban.toUpperCase() });
   }
 
   @Post(':id/documents')
@@ -82,7 +84,8 @@ export class HostApplicationsController {
     @Param('id') id: string,
     @Body('type', new ParseEnumPipe(DocumentType)) type: DocumentType,
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request & { user: { sub: string } },
   ) {
-    return this.apps.addDocument(id, type, file);
+    return this.apps.addDocument(id, type, file, req.user.sub);
   }
 }

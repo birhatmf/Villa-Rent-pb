@@ -30,17 +30,19 @@ curl -sf -c "$ADMIN_JAR" -X POST "$API/auth/login" -H 'Content-Type: application
 
 # ---- iki host kullanıcı oluştur, rollerini yükselt ------------------------
 curl -sf -c "$HOST1_JAR" -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Villa Host 1\",\"email\":\"$H1_MAIL\",\"password\":\"sifre12345\",\"kvkkAccepted\":true}" >/dev/null
+  -d "{\"name\":\"Villa Host 1\",\"email\":\"$H1_MAIL\",\"phone\":\"05550000001\",\"password\":\"sifre12345\",\"kvkkAccepted\":true}" >/dev/null
 curl -sf -c "$HOST2_JAR" -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Villa Host 2\",\"email\":\"$H2_MAIL\",\"password\":\"sifre12345\",\"kvkkAccepted\":true}" >/dev/null
+  -d "{\"name\":\"Villa Host 2\",\"email\":\"$H2_MAIL\",\"phone\":\"05550000002\",\"password\":\"sifre12345\",\"kvkkAccepted\":true}" >/dev/null
 
 HOST1_ID=$(curl -sf -b "$ADMIN_JAR" -G "$API/admin/users" --data-urlencode "q=$H1_MAIL" \
   | python3 -c "import json,sys;print(json.load(sys.stdin)['items'][0]['id'])")
 HOST2_ID=$(curl -sf -b "$ADMIN_JAR" -G "$API/admin/users" --data-urlencode "q=$H2_MAIL" \
   | python3 -c "import json,sys;print(json.load(sys.stdin)['items'][0]['id'])")
 
-curl -sf -b "$ADMIN_JAR" -X PATCH "$API/admin/users/$HOST1_ID" -H 'Content-Type: application/json' -d '{"role":"HOST"}' >/dev/null
-curl -sf -b "$ADMIN_JAR" -X PATCH "$API/admin/users/$HOST2_ID" -H 'Content-Type: application/json' -d '{"role":"HOST"}' >/dev/null
+APP1_ID=$(curl -sf -b "$HOST1_JAR" -X POST "$API/host-applications" -H 'Content-Type: application/json' -d '{"ownerName":"Villa Host 1","ownerIdNumber":"TEST-1","iban":"TR000000000000000000000000","address":"Test adres 1","ownershipType":"SOLE","signatureName":"Villa Host 1"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+APP2_ID=$(curl -sf -b "$HOST2_JAR" -X POST "$API/host-applications" -H 'Content-Type: application/json' -d '{"ownerName":"Villa Host 2","ownerIdNumber":"TEST-2","iban":"TR000000000000000000000000","address":"Test adres 2","ownershipType":"SOLE","signatureName":"Villa Host 2"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+curl -sf -b "$ADMIN_JAR" -X PATCH "$API/admin/host-applications/$APP1_ID" -H 'Content-Type: application/json' -d '{"status":"APPROVED"}' >/dev/null
+curl -sf -b "$ADMIN_JAR" -X PATCH "$API/admin/host-applications/$APP2_ID" -H 'Content-Type: application/json' -d '{"status":"APPROVED"}' >/dev/null
 
 # Rol değişikliği sonrası taze token gerekiyor (RolesGuard DB'den okur, ama
 # login'de zaten güncel rolle çerez basılıyor — yine de tazele).

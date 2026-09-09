@@ -74,13 +74,12 @@ export class AdminBookingsController {
 /**
  * Ev sahibi kendi villalarının rezervasyonlarını görür ve onaylayabilir.
  * Misafir iletişim bilgisi (ad/e‑posta/telefon) rezervasyon CONFIRMED olana
- * kadar gizlenir — bkz. BookingsService.response. Admin de bu uçlara erişebilir
- * (destek için) ama host/villas ile aynı kuralla kendi kullanıcı id'si üzerinden
- * çalışır; başka host'un rezervasyonlarını görmek için admin/bookings kullanılır.
+ * kadar gizlenir — bkz. BookingsService.response. Admin işlemleri ayrı
+ * admin/bookings uçlarından yürütülür.
  */
 @Controller('host/bookings')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostBookingsController {
   constructor(private bookings: BookingsService) {}
 

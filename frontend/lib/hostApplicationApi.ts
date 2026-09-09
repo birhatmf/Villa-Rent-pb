@@ -17,8 +17,6 @@ export type DocumentType =
 export type CreateApplicationInput = {
   ownerName: string;
   ownerIdNumber: string;
-  phone: string;
-  email: string;
   uetsAddress?: string;
   iban: string;
   address: string;

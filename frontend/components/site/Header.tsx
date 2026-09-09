@@ -52,7 +52,7 @@ export default function Header() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ${
+      className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-500 ${
         opaque ? 'border-b border-line bg-canvas/92 backdrop-blur-md' : 'border-b border-transparent'
       }`}
     >
@@ -77,7 +77,7 @@ export default function Header() {
             >
               {item.label}
               <span
-                className={`absolute -bottom-1.5 left-0 h-px w-0 transition-all duration-300 group-hover:w-full ${
+                className={`absolute -bottom-1.5 left-0 h-px w-0 transition-[width] duration-300 group-hover:w-full ${
                   light ? 'bg-white' : 'bg-gold'
                 }`}
               />
@@ -100,7 +100,7 @@ export default function Header() {
               </Link>
               <Link
                 href="/kayit"
-                className={`hidden rounded-full border px-5 py-2.5 text-[0.85rem] transition-all duration-500 md:inline-block ${
+                className={`hidden rounded-full border px-5 py-2.5 text-[0.85rem] transition-colors duration-500 md:inline-block ${
                   light
                     ? 'border-white/40 text-white hover:bg-white hover:text-ink'
                     : 'border-ink/20 text-ink hover:border-ink hover:bg-ink hover:text-canvas'
@@ -149,27 +149,13 @@ export default function Header() {
 
           {session ? (
             <>
-              <Link
-                href="/hesabim"
-                onClick={() => setOpen(false)}
-                className="border-b border-line/70 py-4 font-display text-2xl text-ink"
-              >
-                Hesabım
-              </Link>
-              <Link
-                href="/hesabim/seyahatlerim"
-                onClick={() => setOpen(false)}
-                className="border-b border-line/70 py-4 font-display text-2xl text-ink"
-              >
-                Seyahatlerim
-              </Link>
-              <Link
-                href="/hesabim/yorumlarim"
-                onClick={() => setOpen(false)}
-                className="border-b border-line/70 py-4 font-display text-2xl text-ink"
-              >
-                Yorumlarım
-              </Link>
+              {session.role === 'GUEST' && (
+                <>
+                  <MobileMenuLink href="/hesabim" close={() => setOpen(false)}>Hesabım</MobileMenuLink>
+                  <MobileMenuLink href="/hesabim/seyahatlerim" close={() => setOpen(false)}>Seyahatlerim</MobileMenuLink>
+                  <MobileMenuLink href="/hesabim/yorumlarim" close={() => setOpen(false)}>Yorumlarım</MobileMenuLink>
+                </>
+              )}
               <Link
                 href="/hesabim/profil"
                 onClick={() => setOpen(false)}
@@ -177,7 +163,7 @@ export default function Header() {
               >
                 Profil ve güvenlik
               </Link>
-              {(session.role === 'HOST' || session.role === 'ADMIN') && (
+              {session.role === 'HOST' && (
                 <Link
                   href="/hesabim/ev-sahibi/rezervasyonlar"
                   onClick={() => setOpen(false)}
@@ -260,7 +246,7 @@ function AccountMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex items-center gap-2.5 rounded-full border py-2 pl-2 pr-4 text-[0.85rem] transition-all duration-500 ${
+        className={`flex items-center gap-2.5 rounded-full border py-2 pl-2 pr-4 text-[0.85rem] transition-colors duration-500 ${
           light
             ? 'border-white/40 text-white hover:bg-white/10'
             : 'border-ink/20 text-ink hover:border-ink'
@@ -278,19 +264,17 @@ function AccountMenu({
 
       {open && (
         <div className="absolute right-0 top-[calc(100%+0.6rem)] w-52 overflow-hidden rounded-xl border border-line bg-surface py-1.5 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.3)]">
-          <MenuLink href="/hesabim" onClick={() => setOpen(false)}>
-            Hesabım
-          </MenuLink>
-          <MenuLink href="/hesabim/seyahatlerim" onClick={() => setOpen(false)}>
-            Seyahatlerim
-          </MenuLink>
-          <MenuLink href="/hesabim/yorumlarim" onClick={() => setOpen(false)}>
-            Yorumlarım
-          </MenuLink>
+          {session.role === 'GUEST' && (
+            <>
+              <MenuLink href="/hesabim" onClick={() => setOpen(false)}>Hesabım</MenuLink>
+              <MenuLink href="/hesabim/seyahatlerim" onClick={() => setOpen(false)}>Seyahatlerim</MenuLink>
+              <MenuLink href="/hesabim/yorumlarim" onClick={() => setOpen(false)}>Yorumlarım</MenuLink>
+            </>
+          )}
           <MenuLink href="/hesabim/profil" onClick={() => setOpen(false)}>
             Profil ve güvenlik
           </MenuLink>
-          {(session.role === 'HOST' || session.role === 'ADMIN') && (
+          {session.role === 'HOST' && (
             <MenuLink href="/hesabim/ev-sahibi/rezervasyonlar" onClick={() => setOpen(false)}>
               Ev sahibi paneli
             </MenuLink>
@@ -311,6 +295,10 @@ function AccountMenu({
       )}
     </div>
   );
+}
+
+function MobileMenuLink({ href, close, children }: { href: string; close: () => void; children: React.ReactNode }) {
+  return <Link href={href} onClick={close} className="border-b border-line/70 py-4 font-display text-2xl text-ink">{children}</Link>;
 }
 
 function MenuLink({

@@ -2,7 +2,7 @@ import { Controller, Delete, Get, Headers, Param, Post, Body, Query, Req, UseGua
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { JwtGuard } from '../auth/jwt.guard';
-import { RolesGuard } from '../auth/roles.guard';
+import { Roles, RolesGuard } from '../auth/roles.guard';
 import { BookingsService } from './bookings.service';
 import { CancellationRequestDto, CreateHoldDto, OwnBookingListDto, RequestChangeDto } from './dto';
 
@@ -10,6 +10,7 @@ type AuthRequest = Request & { user: { sub: string } };
 
 @Controller('bookings')
 @UseGuards(JwtGuard, RolesGuard, ThrottlerGuard)
+@Roles('GUEST')
 export class BookingsController {
   constructor(private bookings: BookingsService) {}
 

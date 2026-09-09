@@ -5,7 +5,6 @@ import {
   Get,
   Param,
   Patch,
-  Post,
   Query,
   Req,
   Res,
@@ -35,11 +34,6 @@ class ReviewDto {
   @IsOptional() @IsString() @Length(0, 2000) adminNote?: string;
 }
 
-class LinkHostDto {
-  /** Boş bırakılırsa başvurudaki bilgilerle yeni bir HOST hesabı oluşturulur. */
-  @IsOptional() @IsString() userId?: string;
-}
-
 @Controller('admin/host-applications')
 @UseGuards(JwtGuard, RolesGuard)
 @Roles('ADMIN')
@@ -65,15 +59,6 @@ export class AdminHostApplicationsController {
     return this.apps.review(id, dto.status, dto.adminNote, req.user.sub);
   }
 
-  @Post(':id/link-host')
-  linkHost(
-    @Param('id') id: string,
-    @Body() dto: LinkHostDto,
-    @Req() req: Request & { user: { sub: string } },
-  ) {
-    return this.apps.linkHost(id, dto.userId, req.user.sub);
-  }
-
   @Get(':id/documents/:docId/download')
   async download(
     @Param('id') id: string,
@@ -97,7 +82,7 @@ export class AdminHostApplicationsController {
 /** Owner kendi bağlı başvurusunu salt okunur görür — dashboard'daki "başvuru bilgileri" kartı için. */
 @Controller('host/onboarding')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostOnboardingController {
   constructor(private apps: HostApplicationsService) {}
 

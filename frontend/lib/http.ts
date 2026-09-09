@@ -13,10 +13,14 @@ export class ApiError extends Error {
 
 /** Admin ve müşteri API sarmalayıcılarının ortak tabanı. */
 export async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (!(init.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   const res = await fetch(`${API}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...init.headers },
+    headers,
   });
 
   if (!res.ok) {
@@ -29,5 +33,11 @@ export async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     throw new ApiError(msg ?? `İstek başarısız (${res.status})`, res.status);
   }
-  return res.status === 204 ? (undefined as T) : res.json();
+  const text = await res.text();
+  if (!text.trim()) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError('Sunucudan geçersiz bir yanıt alındı.', 502);
+  }
 }

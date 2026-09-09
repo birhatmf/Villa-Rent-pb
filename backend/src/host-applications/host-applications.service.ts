@@ -4,9 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { ApplicationStatus, DocumentType, OwnershipType } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
-import { randomBytes, randomUUID } from 'crypto';
+import { Prisma, type ApplicationStatus, type DocumentType, type OwnershipType } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
@@ -24,8 +23,6 @@ export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 export type CreateApplicationInput = {
   ownerName: string;
   ownerIdNumber: string;
-  phone: string;
-  email: string;
   uetsAddress?: string;
   iban: string;
   address: string;
@@ -48,10 +45,44 @@ export type ListParams = {
 export class HostApplicationsService {
   constructor(private prisma: PrismaService) {}
 
-  create(input: CreateApplicationInput) {
-    return this.prisma.hostApplication.create({
-      data: { ...input, termsAcceptedAt: new Date() },
+  async create(userId: string, input: CreateApplicationInput) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phone: true, role: true, active: true },
     });
+    if (!user?.active || user.role !== 'GUEST') {
+      throw new BadRequestException('Ev sahibi başvurusu yalnızca müşteri hesabıyla yapılabilir.');
+    }
+    if (!user.phone) {
+      throw new BadRequestException('Başvuru için hesabınıza telefon numarası ekleyin.');
+    }
+
+    const current = await this.prisma.hostApplication.findFirst({
+      where: { linkedHostId: user.id, status: { in: ['PENDING', 'APPROVED'] } },
+      select: { id: true, status: true },
+    });
+    if (current) {
+      throw new ConflictException(
+        current.status === 'PENDING' ? 'İncelenmekte olan bir başvurunuz zaten var.' : 'Hesabınız için onaylanmış bir ev sahibi başvurusu zaten var.',
+      );
+    }
+
+    try {
+      return await this.prisma.hostApplication.create({
+        data: {
+          ...input,
+          email: user.email,
+          phone: user.phone,
+          linkedHostId: user.id,
+          termsAcceptedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Aktif bir ev sahibi başvurunuz zaten var.');
+      }
+      throw error;
+    }
   }
 
   async list({ status, q, page = 1, pageSize = 20 }: ListParams) {
@@ -99,67 +130,36 @@ export class HostApplicationsService {
   }
 
   async review(id: string, status: 'APPROVED' | 'REJECTED', adminNote: string | undefined, actorId: string) {
-    await this.get(id);
-    return this.prisma.hostApplication.update({
+    const application = await this.prisma.hostApplication.findUnique({
       where: { id },
-      data: { status, adminNote, reviewedAt: new Date(), reviewedBy: actorId },
+      include: { linkedHost: { select: { id: true, name: true, email: true, role: true, active: true } } },
     });
-  }
-
-  /**
-   * Onaylı başvuruyu gerçek bir HOST hesabına bağlar — mevcut bir kullanıcıya
-   * (rolü GUEST ise HOST'a yükseltilir) veya `userId` verilmezse yeni bir hesaba.
-   * Başvuru kalıcı kaynak kayıt olarak kalır; alanları başka yere kopyalanmaz.
-   *
-   * Yeni hesap dalında dönen `tempPassword` yalnızca bu yanıtta bir kere görünür,
-   * hiç saklanmaz/loglanmaz. Repoda e-posta/SMS altyapısı olmadığı için admin bunu
-   * başvurudaki telefon numarasıyla elden iletir — olmayan bir bildirim sistemini
-   * simüle etmek yerine dürüst v1 çözümü.
-   */
-  async linkHost(applicationId: string, userId: string | undefined, actorId: string) {
-    const application = await this.get(applicationId);
-    if (application.status !== 'APPROVED') {
-      throw new BadRequestException('Yalnızca onaylanmış başvurular bir hesaba bağlanabilir.');
+    if (!application) throw new NotFoundException('Başvuru bulunamadı.');
+    if (application.status !== 'PENDING') throw new ConflictException('Bu başvuru daha önce sonuçlandırılmış.');
+    if (!application.linkedHost) {
+      throw new BadRequestException('Bu eski başvuru kayıtlı bir hesaba bağlı değil; kullanıcı yeniden başvurmalı.');
     }
-    if (application.linkedHostId) {
-      throw new ConflictException('Bu başvuru zaten bir hesaba bağlı.');
+    if (!application.linkedHost.active || application.linkedHost.role !== 'GUEST') {
+      throw new ConflictException('Başvuru hesabı aktif bir müşteri hesabı değil.');
     }
 
-    if (userId) {
-      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, active: true } });
-      if (!user || !user.active) throw new BadRequestException('Aktif bir kullanıcı hesabı gerekli.');
-      if (user.role === 'ADMIN') throw new BadRequestException('Bir yönetici hesabı ev sahibi başvurusuna bağlanamaz.');
-      if (user.role === 'GUEST') {
-        await this.prisma.user.update({ where: { id: userId }, data: { role: 'HOST', sessionVersion: { increment: 1 } } });
-      }
-      const linked = await this.prisma.hostApplication.update({
-        where: { id: applicationId },
-        data: { linkedHostId: userId },
-        include: { linkedHost: { select: { id: true, name: true, email: true } } },
+    await this.prisma.$transaction(async (tx) => {
+      const reviewed = await tx.hostApplication.updateMany({
+        where: { id, status: 'PENDING' },
+        data: { status, adminNote, reviewedAt: new Date(), reviewedBy: actorId },
       });
-      return { application: linked };
-    }
+      if (reviewed.count !== 1) throw new ConflictException('Bu başvuru başka bir yönetici tarafından sonuçlandırıldı.');
 
-    const existing = await this.prisma.user.findUnique({ where: { email: application.email }, select: { id: true } });
-    if (existing) throw new ConflictException('Bu e‑posta ile zaten bir hesap var. Mevcut hesaba bağlayın.');
+      if (status === 'APPROVED') {
+        const promoted = await tx.user.updateMany({
+          where: { id: application.linkedHost!.id, role: 'GUEST', active: true },
+          data: { role: 'HOST', sessionVersion: { increment: 1 } },
+        });
+        if (promoted.count !== 1) throw new ConflictException('Başvuru hesabının rolü değişti; işlem tamamlanamadı.');
+      }
+    });
 
-    const tempPassword = randomBytes(8).toString('base64url');
-    const user = await this.prisma.user.create({
-      data: {
-        name: application.ownerName,
-        email: application.email,
-        phone: application.phone,
-        role: 'HOST',
-        active: true,
-        passwordHash: await bcrypt.hash(tempPassword, 10),
-      },
-    });
-    const linked = await this.prisma.hostApplication.update({
-      where: { id: applicationId },
-      data: { linkedHostId: user.id },
-      include: { linkedHost: { select: { id: true, name: true, email: true } } },
-    });
-    return { application: linked, tempPassword };
+    return this.get(id);
   }
 
   counts() {
@@ -186,8 +186,14 @@ export class HostApplicationsService {
     applicationId: string,
     type: DocumentType,
     file: Express.Multer.File,
+    userId: string,
   ) {
-    await this.get(applicationId);
+    const application = await this.prisma.hostApplication.findFirst({
+      where: { id: applicationId, linkedHostId: userId, status: 'PENDING' },
+      select: { id: true },
+    });
+    if (!application) throw new NotFoundException('Başvuru bulunamadı.');
+    if (!file) throw new BadRequestException('Yüklenecek dosyayı seçin.');
 
     const ext = ALLOWED_MIME[file.mimetype];
     if (!ext) {

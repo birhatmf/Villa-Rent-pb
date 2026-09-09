@@ -79,7 +79,7 @@ export default async function VillasPage({ searchParams }: {
             <div className="rounded-2xl bg-sand/50 px-6 py-20 text-center">
               <h2 className="font-display text-3xl font-light">{data.total ? 'Bu sayfada villa yok.' : 'Bu filtrelere uyan villa bulunamadı.'}</h2>
               <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted">{data.total ? 'Sonuçları görmek için ilk sayfaya dönebilirsiniz.' : 'Farklı tarihler veya başka bir bölge deneyin. Tüm villaları görmek için filtreleri temizleyebilirsiniz.'}</p>
-              <Link href={data.total ? pageHref(1) : '/villalar'} className="mt-7 inline-block rounded-lg bg-ink px-6 py-3.5 text-sm text-canvas hover:bg-olive">{data.total ? 'İlk sayfaya dön' : 'Tüm villaları gör'}</Link>
+              <Link href={data.total ? pageHref(1) : '/villalar'} className="mt-7 inline-block rounded-full bg-ink px-6 py-3.5 text-sm text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">{data.total ? 'İlk sayfaya dön' : 'Tüm villaları gör'}</Link>
             </div>
           )}
 

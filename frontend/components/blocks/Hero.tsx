@@ -11,12 +11,21 @@ type Slide = { image: string; caption?: string };
 export default function Hero({ content }: { content: Record<string, any> }) {
   const slides: Slide[] = content.slides ?? [];
   const [active, setActive] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
-    if (slides.length < 2) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduceMotion(mq.matches);
+    const onChange = (event: MediaQueryListEvent) => setReduceMotion(event.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    if (slides.length < 2 || reduceMotion) return;
     const t = setInterval(() => setActive((i) => (i + 1) % slides.length), 6500);
     return () => clearInterval(t);
-  }, [slides.length]);
+  }, [slides.length, reduceMotion]);
 
   return (
     <section className="relative z-10 flex min-h-[92svh] flex-col justify-end overflow-visible">
@@ -24,9 +33,11 @@ export default function Hero({ content }: { content: Record<string, any> }) {
         <div
           key={s.image}
           aria-hidden={i !== active}
-          className={`absolute inset-0 overflow-hidden transition-opacity duration-[1600ms] ease-[var(--ease-out-soft)] ${
-            i === active ? 'opacity-100' : 'opacity-0'
-          }`}
+          className={`absolute inset-0 overflow-hidden ${
+            reduceMotion
+              ? 'transition-opacity duration-200'
+              : 'transition-opacity duration-[1600ms] ease-[var(--ease-out-soft)]'
+          } ${i === active ? 'opacity-100' : 'opacity-0'}`}
         >
           <Image
             src={s.image}
@@ -34,8 +45,10 @@ export default function Hero({ content }: { content: Record<string, any> }) {
             fill
             priority={i === 0}
             sizes="100vw"
-            className={`object-cover transition-transform duration-[9000ms] ease-linear ${
-              i === active ? 'scale-110' : 'scale-100'
+            className={`object-cover ${
+              reduceMotion
+                ? ''
+                : `transition-transform duration-[9000ms] ease-linear ${i === active ? 'scale-110' : 'scale-100'}`
             }`}
           />
         </div>
@@ -69,7 +82,7 @@ export default function Hero({ content }: { content: Record<string, any> }) {
                   type="button"
                   aria-label={`${i + 1}. görsel`}
                   onClick={() => setActive(i)}
-                  className={`h-px transition-all duration-500 ${
+                  className={`h-px transition-[width,background-color] duration-500 ${
                     i === active ? 'w-14 bg-white' : 'w-7 bg-white/40 hover:bg-white/70'
                   }`}
                 />

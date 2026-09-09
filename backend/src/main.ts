@@ -16,9 +16,9 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-  // Villa görselleri herkese açık — host-application belgelerinin aksine
-  // (bunlar pazarlama fotoğrafı, /api öneki almadan doğrudan servis edilir).
+  // Villa ve CMS görselleri herkese açık; host-application belgeleri açık değildir.
   app.useStaticAssets(join(process.cwd(), 'uploads', 'villas'), { prefix: '/uploads/villas' });
+  app.useStaticAssets(join(process.cwd(), 'uploads', 'media'), { prefix: '/uploads/media' });
 
   await app.listen(process.env.PORT ?? 4000);
   console.log(`API → http://localhost:${process.env.PORT ?? 4000}/api`);

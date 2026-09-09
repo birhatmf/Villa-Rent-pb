@@ -2,7 +2,7 @@
  * Admin menüsü tek kaynak. Hazır olmayan modüller `soon: true` ile
  * soluk ve tıklanamaz görünür — panelin nereye doğru büyüdüğü baştan belli olsun.
  */
-export type NavItem = { label: string; href: string; icon: string; soon?: boolean };
+export type NavItem = { label: string; href: string; icon: string; soon?: boolean; exact?: boolean };
 export type NavGroup = { title: string; items: NavItem[] };
 
 export const ADMIN_NAV: NavGroup[] = [
@@ -44,6 +44,28 @@ export const ADMIN_NAV: NavGroup[] = [
   },
 ];
 
+export const OWNER_NAV: NavGroup[] = [
+  {
+    title: 'Panel',
+    items: [{ label: 'Genel bakış', href: '/hesabim/ev-sahibi', icon: 'home' }],
+  },
+  {
+    title: 'Portföy',
+    items: [
+      { label: 'Villalarım', href: '/hesabim/villalarim', icon: 'villa' },
+      { label: 'Yeni villa ekle', href: '/hesabim/villalarim/yeni', icon: 'plus', exact: true },
+    ],
+  },
+  {
+    title: 'Operasyon',
+    items: [
+      { label: 'Rezervasyonlar', href: '/hesabim/ev-sahibi/rezervasyonlar', icon: 'calendar' },
+      { label: 'Doluluk takvimi', href: '/hesabim/ev-sahibi/takvim', icon: 'calendar' },
+      { label: 'Misafir yorumları', href: '/hesabim/ev-sahibi/yorumlar', icon: 'sparkle' },
+    ],
+  },
+];
+
 /** 1.3 kalınlıkta, 24'lük grid — site ikonlarıyla aynı dil. */
 export const NAV_ICONS: Record<string, string> = {
   home: 'M3.5 10.5L12 4l8.5 6.5 M6 9.8V20h12V9.8',
@@ -56,4 +78,6 @@ export const NAV_ICONS: Record<string, string> = {
   calendar: 'M4.5 6.5h15v14h-15z M4.5 11h15 M8.5 3.5v4 M15.5 3.5v4',
   sparkle: 'M12 3l1.9 5.3L19 10.2l-5.1 1.9L12 17.4l-1.9-5.3L5 10.2l5.1-1.9L12 3z M18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2z',
   payment: 'M3.5 6.5h17v11h-17z M3.5 10h17 M7 14h4',
+  plus: 'M12 4v16 M4 12h16',
+  arrow: 'M5 12h14 M14 7l5 5-5 5',
 };

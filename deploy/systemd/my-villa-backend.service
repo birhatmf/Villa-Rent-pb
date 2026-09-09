@@ -1,0 +1,19 @@
+[Unit]
+Description=My Villa NestJS API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=myvilla
+Group=myvilla
+WorkingDirectory=/srv/my-villa/backend
+EnvironmentFile=/srv/my-villa/backend/.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

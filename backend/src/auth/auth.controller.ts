@@ -41,10 +41,9 @@ class RegisterDto {
   @MaxLength(72, { message: 'Şifre en fazla 72 karakter olabilir.' })
   password!: string;
 
-  @IsOptional()
   @IsString()
-  @Length(0, 30)
-  phone?: string;
+  @Length(6, 30, { message: 'Geçerli bir telefon numarası girin.' })
+  phone!: string;
 
   @Equals(true, { message: 'Devam etmek için KVKK aydınlatma metnini onaylamalısınız.' })
   kvkkAccepted!: boolean;

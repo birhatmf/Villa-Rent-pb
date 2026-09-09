@@ -7,7 +7,16 @@ import ReservationSteps from '@/components/site/ReservationSteps';
 import BookingServiceRequests from '@/components/site/BookingServiceRequests';
 import { formatPrice } from '@/lib/api';
 import { ApiError } from '@/lib/http';
-import { declarePayment, getBooking, getContactSettings, releaseHold, type GuestBooking } from '@/lib/reservationApi';
+import {
+  declareGuestPayment,
+  declarePayment,
+  getBooking,
+  getContactSettings,
+  getGuestBooking,
+  releaseGuestHold,
+  releaseHold,
+  type GuestBooking,
+} from '@/lib/reservationApi';
 
 const dayLabel = (value: string) =>
   new Date(`${value}T00:00:00Z`).toLocaleDateString('tr-TR', {
@@ -32,6 +41,7 @@ export default function ReservationPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [booking, setBooking] = useState<GuestBooking | null>(null);
+  const [anonymous, setAnonymous] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,18 +49,24 @@ export default function ReservationPage() {
   const [tick, setTick] = useState(() => Date.now());
 
   useEffect(() => {
-    getBooking(id)
-      .then(setBooking)
-      .catch((cause) => {
-        if (cause instanceof ApiError && cause.status === 401) {
-          router.replace(`/giris?next=${encodeURIComponent(`/hesabim/seyahatlerim/${id}`)}`);
-          return;
+    getGuestBooking(id)
+      .then((value) => { setAnonymous(true); setBooking(value); })
+      .catch(async (guestError) => {
+        try {
+          const value = await getBooking(id);
+          setAnonymous(false);
+          setBooking(value);
+        } catch (accountError) {
+          if (accountError instanceof ApiError && accountError.status === 401) {
+            router.replace(`/giris?next=${encodeURIComponent(`/hesabim/seyahatlerim/${id}`)}`);
+            return;
+          }
+          setLoadError(accountError instanceof Error ? accountError.message : guestError instanceof Error ? guestError.message : 'Rezervasyon bulunamadı.');
         }
-        setLoadError(cause instanceof Error ? cause.message : 'Rezervasyon bulunamadı.');
       });
   }, [id, router]);
 
-  async function reload() { setBooking(await getBooking(id)); }
+  async function reload() { setBooking(await (anonymous ? getGuestBooking(id) : getBooking(id))); }
 
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 1000);
@@ -131,7 +147,7 @@ export default function ReservationPage() {
         <Row label="Hasar depozitosu" value={`${formatPrice(booking.depositAmount, booking.currency)} (girişte)`} />
       </dl>
 
-      <BookingServiceRequests booking={booking} onReload={reload} />
+      {!anonymous && <BookingServiceRequests booking={booking} onReload={reload} />}
 
       {awaitingPayment && payment && (
         <section className="mt-12">
@@ -184,7 +200,7 @@ export default function ReservationPage() {
             <button
               type="button"
               disabled={busy || !payment.iban}
-              onClick={() => run(() => declarePayment(booking.id))}
+              onClick={() => run(() => anonymous ? declareGuestPayment(booking.id) : declarePayment(booking.id))}
               className="rounded-full bg-ink px-8 py-3.5 text-[0.92rem] text-canvas transition-colors hover:bg-olive disabled:opacity-40"
             >
               {busy ? 'Gönderiliyor…' : 'Havaleyi gönderdim'}
@@ -192,7 +208,7 @@ export default function ReservationPage() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => run(() => releaseHold(booking.id))}
+              onClick={() => run(() => anonymous ? releaseGuestHold(booking.id) : releaseHold(booking.id))}
               className="text-[0.85rem] text-muted underline underline-offset-4 hover:text-ink disabled:opacity-40"
             >
               Vazgeç, tarihleri bırak
@@ -216,9 +232,11 @@ export default function ReservationPage() {
       {booking.status === 'CONFIRMED' && (
         <div className="mt-12 rounded-xl border border-olive/40 bg-olive/10 p-5 text-[0.92rem] leading-relaxed text-ink">
           <p>Ödemeniz doğrulandı ve tarihleriniz kesinleşti. Giriş bilgileri için destek ekibi sizinle iletişime geçecek.</p>
-          <Link href="/hesabim/yorumlarim" className="mt-3 inline-block text-[0.85rem] underline underline-offset-4">
-            Konaklama bittiyse yorumunuzu yazın
-          </Link>
+          {!anonymous && (
+            <Link href="/hesabim/yorumlarim" className="mt-3 inline-block text-[0.85rem] underline underline-offset-4">
+              Konaklama bittiyse yorumunuzu yazın
+            </Link>
+          )}
         </div>
       )}
 
@@ -233,8 +251,8 @@ export default function ReservationPage() {
         </div>
       )}
 
-      <Link href="/hesabim/seyahatlerim" className="mt-12 inline-block text-[0.85rem] text-muted underline underline-offset-4 hover:text-ink">
-        Tüm seyahatlerim
+      <Link href={anonymous ? `/villalar/${booking.villa.slug}` : '/hesabim/seyahatlerim'} className="mt-12 inline-block text-[0.85rem] text-muted underline underline-offset-4 hover:text-ink">
+        {anonymous ? 'Villaya dön' : 'Tüm seyahatlerim'}
       </Link>
     </div>
   );

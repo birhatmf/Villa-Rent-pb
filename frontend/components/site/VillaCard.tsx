@@ -16,8 +16,8 @@ export default function VillaCard({ villa, delay = 0 }: { villa: VillaCardData; 
       style={{ transitionDelay: `${delay}ms` }}
       className="reveal group relative"
     >
-      <Link href={`/villalar/${villa.slug}`} className="block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-olive">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand-deep">
+      <Link href={`/villalar/${villa.slug}`} className="block rounded-xl transition-transform active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-olive">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand-deep ring-1 ring-black/10">
         {villa.images[0] && (
           <Image
             src={villa.images[0]}
@@ -67,7 +67,7 @@ export default function VillaCard({ villa, delay = 0 }: { villa: VillaCardData; 
         </div>
 
         <div className="mt-4 flex items-baseline gap-1.5 border-t border-line pt-4">
-          <span className="font-display text-xl text-ink">
+          <span className="font-display text-xl text-ink tabular-nums">
             {min === max
               ? formatPrice(min, villa.currency)
               : `${formatPrice(min, villa.currency)} – ${formatPrice(max, villa.currency)}`}

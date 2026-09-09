@@ -31,7 +31,7 @@ export class AdminServiceRequestsController {
 
 @Controller('host/service-requests')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostServiceRequestsController {
   constructor(private bookings: BookingsService) {}
 

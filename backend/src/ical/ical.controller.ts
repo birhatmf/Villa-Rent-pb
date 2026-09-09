@@ -81,7 +81,7 @@ export class AdminIcalController {
 
 @Controller('host/villas/:villaId/ical-sources')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostIcalController {
   constructor(private ical: IcalService) {}
 

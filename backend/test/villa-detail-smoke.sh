@@ -25,10 +25,11 @@ curl -sf -c "$ADMIN_JAR" -X POST "$API/auth/login" -H 'Content-Type: application
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" >/dev/null || fail "admin girişi başarısız"
 
 curl -sf -c "$HOST_JAR" -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Detail Host\",\"email\":\"$H_MAIL\",\"password\":\"sifre12345\",\"kvkkAccepted\":true}" >/dev/null
+  -d "{\"name\":\"Detail Host\",\"email\":\"$H_MAIL\",\"phone\":\"05550000003\",\"password\":\"sifre12345\",\"kvkkAccepted\":true}" >/dev/null
 HOST_ID=$(curl -sf -b "$ADMIN_JAR" -G "$API/admin/users" --data-urlencode "q=$H_MAIL" \
   | python3 -c "import json,sys;print(json.load(sys.stdin)['items'][0]['id'])")
-curl -sf -b "$ADMIN_JAR" -X PATCH "$API/admin/users/$HOST_ID" -H 'Content-Type: application/json' -d '{"role":"HOST"}' >/dev/null
+APP_ID=$(curl -sf -b "$HOST_JAR" -X POST "$API/host-applications" -H 'Content-Type: application/json' -d '{"ownerName":"Detail Host","ownerIdNumber":"TEST-3","iban":"TR000000000000000000000000","address":"Test adres 3","ownershipType":"SOLE","signatureName":"Detail Host"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+curl -sf -b "$ADMIN_JAR" -X PATCH "$API/admin/host-applications/$APP_ID" -H 'Content-Type: application/json' -d '{"status":"APPROVED"}' >/dev/null
 curl -sf -c "$HOST_JAR" -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$H_MAIL\",\"password\":\"sifre12345\"}" >/dev/null
 echo "  ✓ host hazır"

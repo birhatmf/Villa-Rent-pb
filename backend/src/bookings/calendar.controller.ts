@@ -41,7 +41,7 @@ export class AdminCalendarController {
 
 @Controller('host/calendar')
 @UseGuards(JwtGuard, RolesGuard)
-@Roles('HOST', 'ADMIN')
+@Roles('HOST')
 export class HostCalendarController {
   constructor(private calendar: CalendarService) {}
 

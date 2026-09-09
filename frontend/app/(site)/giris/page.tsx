@@ -44,7 +44,7 @@ function GirisForm() {
       image="https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?auto=format&fit=crop&w=1400&q=80"
       footer={
         <>
-          Hesabınız yok mu? <AuthLink href="/kayit">Üye olun</AuthLink>
+          Hesabınız yok mu? <AuthLink href={params.get('next') ? `/kayit?next=${encodeURIComponent(params.get('next')!)}` : '/kayit'}>Üye olun</AuthLink>
         </>
       }
     >

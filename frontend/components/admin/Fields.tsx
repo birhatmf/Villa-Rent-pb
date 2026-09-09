@@ -1,6 +1,7 @@
 'use client';
 
 import type { Field } from '@/lib/blockSchema';
+import { ImageUploadField } from './ImageUploadField';
 
 const inputCls =
   'mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2 text-[0.9rem] text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-olive-soft';
@@ -71,23 +72,7 @@ export function FieldInput({
 
     case 'image':
       return (
-        <Label field={field}>
-          <input
-            type="url"
-            value={value ?? ''}
-            placeholder="https://…"
-            onChange={(e) => onChange(e.target.value)}
-            className={inputCls}
-          />
-          {value && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={value}
-              alt=""
-              className="mt-2 h-24 w-full rounded-md border border-line object-cover"
-            />
-          )}
-        </Label>
+        <ImageUploadField label={field.label} value={value} hint={field.hint} onChange={onChange} />
       );
 
     case 'group':
@@ -224,7 +209,7 @@ function IconBtn({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-6 w-6 items-center justify-center rounded text-muted transition-colors hover:bg-sand-deep hover:text-ink disabled:pointer-events-none disabled:opacity-30"
+      className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-sand-deep hover:text-ink disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
     </button>

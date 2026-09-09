@@ -92,7 +92,22 @@ export const createBookingRequest = (input: CreateHoldInput) =>
     body: JSON.stringify(input),
   });
 
+export const createGuestHold = (input: CreateHoldInput) =>
+  req<GuestBooking>('/guest-bookings/holds', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(input),
+  });
+
+export const createGuestBookingRequest = (input: CreateHoldInput) =>
+  req<GuestBooking>('/guest-bookings/requests', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(input),
+  });
+
 export const getBooking = (id: string) => req<GuestBooking>(`/bookings/${id}`);
+export const getGuestBooking = (id: string) => req<GuestBooking>(`/guest-bookings/${id}`);
 
 export type OwnBookingScope = 'all' | 'action-required' | 'upcoming' | 'past' | 'cancelled';
 
@@ -108,8 +123,14 @@ export const listMyBookings = (input: { scope?: OwnBookingScope; page?: number; 
 export const declarePayment = (id: string) =>
   req<GuestBooking>(`/bookings/${id}/payment-declared`, { method: 'POST' });
 
+export const declareGuestPayment = (id: string) =>
+  req<GuestBooking>(`/guest-bookings/${id}/payment-declared`, { method: 'POST' });
+
 export const releaseHold = (id: string) =>
   req<GuestBooking>(`/bookings/${id}/hold`, { method: 'DELETE' });
+
+export const releaseGuestHold = (id: string) =>
+  req<GuestBooking>(`/guest-bookings/${id}/hold`, { method: 'DELETE' });
 
 export const withdrawBookingRequest = (id: string) =>
   req<GuestBooking>(`/bookings/${id}/withdraw`, { method: 'POST' });

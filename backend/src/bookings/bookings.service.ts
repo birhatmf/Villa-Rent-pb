@@ -60,11 +60,12 @@ export class BookingsService {
     private settings: SettingsService,
   ) {}
 
-  async createHold(input: CreateHoldDto, userId: string, idempotencyKey?: string) {
+  async createHold(input: CreateHoldDto, userId: string | null, idempotencyKey?: string) {
     const key = this.idempotencyKey(idempotencyKey);
-    const owner = `guest:${userId}`;
+    const anonymous = userId ? null : this.anonymousContact(input);
+    const owner = userId ? `guest:${userId}` : `anonymous:${this.hash(anonymous!.email)}`;
     const normalized = this.normalizeStay(input);
-    const requestHash = this.hash({ villaId: input.villaId, ...normalized });
+    const requestHash = this.hash({ villaId: input.villaId, ...normalized, ...(anonymous ? { customer: anonymous } : {}) });
     // Ayarlar kilit ALTINDA okunmaz: açık transaction içinden ikinci bir sorgu
     // havuzdan yeni bağlantı ister ve eşzamanlı bekletmelerde kilitlenme yaratır.
     const payment = readPaymentSettings(await this.settings.get('payments'));
@@ -74,12 +75,23 @@ export class BookingsService {
         const existing = await this.findIdempotent(tx, owner, key, requestHash);
         if (existing) return this.response(existing);
 
-        const guest = await tx.$queryRaw<{ id: string; name: string; email: string; phone: string | null }[]>`
-          SELECT id, name, email, phone FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
-        `;
-        if (!guest.length) throw new ForbiddenException('Aktif misafir hesabı bulunamadı.');
+        let customer: { name: string; email: string; phone: string | null };
+        if (userId) {
+          const guest = await tx.$queryRaw<{ id: string; name: string; email: string; phone: string | null }[]>`
+            SELECT id, name, email, phone FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
+          `;
+          if (!guest.length) throw new ForbiddenException('Aktif misafir hesabı bulunamadı.');
+          customer = guest[0];
+        } else {
+          customer = anonymous!;
+        }
         const activeHolds = await tx.booking.count({
-          where: { guestId: userId, status: 'HOLD', holdExpiresAt: { gt: now } },
+          where: {
+            guestId: userId,
+            ...(!userId ? { customerEmail: customer.email } : {}),
+            status: 'HOLD',
+            holdExpiresAt: { gt: now },
+          },
         });
         if (activeHolds >= MAX_ACTIVE_HOLDS) {
           throw new ConflictException({
@@ -101,7 +113,7 @@ export class BookingsService {
         const booking = await tx.booking.create({
           data: {
             villaId: input.villaId,
-            guestId: userId,
+            guestId: userId ?? undefined,
             status: 'HOLD',
             channel: 'WEBSITE',
             checkIn: dates.checkIn,
@@ -109,9 +121,9 @@ export class BookingsService {
             ...normalized,
             // İletişim bilgisi boşsa hesaptaki bilgi yazılır; misafir hesabını
             // sonradan değiştirse de rezervasyonun kimin adına açıldığı sabit kalır.
-            customerName: input.customerName?.trim() || guest[0].name,
-            customerEmail: input.customerEmail?.trim().toLowerCase() || guest[0].email,
-            customerPhone: input.customerPhone?.trim() || guest[0].phone || undefined,
+            customerName: input.customerName?.trim() || customer.name,
+            customerEmail: input.customerEmail?.trim().toLowerCase() || customer.email,
+            customerPhone: input.customerPhone?.trim() || customer.phone || undefined,
             ...quote,
             priceSnapshot: this.snapshot(quote.priceSnapshot),
             paymentStatus: 'PENDING',
@@ -123,7 +135,7 @@ export class BookingsService {
           },
           select: BOOKING_SELECT,
         });
-        await this.audit(tx, booking, userId, 'HOLD_CREATED', undefined, {
+        await this.audit(tx, booking, userId ?? undefined, 'HOLD_CREATED', undefined, {
           status: booking.status,
           checkIn: formatCalendarDate(booking.checkIn),
           checkOut: formatCalendarDate(booking.checkOut),
@@ -145,21 +157,28 @@ export class BookingsService {
    * rezervasyon/blok ile çakışma ve villa kuralı ihlalleri (kapasite, min gece, giriş günü, satış
    * durdurulmuş) hâlâ engeller.
    */
-  async createRequest(input: CreateHoldDto, userId: string, idempotencyKey?: string) {
+  async createRequest(input: CreateHoldDto, userId: string | null, idempotencyKey?: string) {
     const key = this.idempotencyKey(idempotencyKey);
-    const owner = `guest:${userId}`;
+    const anonymous = userId ? null : this.anonymousContact(input);
+    const owner = userId ? `guest:${userId}` : `anonymous:${this.hash(anonymous!.email)}`;
     const normalized = this.normalizeStay(input);
-    const requestHash = this.hash({ villaId: input.villaId, ...normalized, kind: 'REQUEST' });
+    const requestHash = this.hash({ villaId: input.villaId, ...normalized, kind: 'REQUEST', ...(anonymous ? { customer: anonymous } : {}) });
 
     try {
       return await this.occupancy.withVillaLock(input.villaId, async (tx, now) => {
         const existing = await this.findIdempotent(tx, owner, key, requestHash);
         if (existing) return this.response(existing);
 
-        const guest = await tx.$queryRaw<{ id: string; name: string; email: string; phone: string | null }[]>`
-          SELECT id, name, email, phone FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
-        `;
-        if (!guest.length) throw new ForbiddenException('Aktif misafir hesabı bulunamadı.');
+        let customer: { name: string; email: string; phone: string | null };
+        if (userId) {
+          const guest = await tx.$queryRaw<{ id: string; name: string; email: string; phone: string | null }[]>`
+            SELECT id, name, email, phone FROM "User" WHERE id = ${userId} AND active = true FOR UPDATE
+          `;
+          if (!guest.length) throw new ForbiddenException('Aktif misafir hesabı bulunamadı.');
+          customer = guest[0];
+        } else {
+          customer = anonymous!;
+        }
 
         const dates = parseStayDates(input.from, input.to);
         const { villa, result } = await this.occupancy.checkAvailability(tx, input.villaId, dates, normalized);
@@ -173,15 +192,15 @@ export class BookingsService {
         const booking = await tx.booking.create({
           data: {
             villaId: input.villaId,
-            guestId: userId,
+            guestId: userId ?? undefined,
             status: 'REQUESTED',
             channel: 'WEBSITE',
             checkIn: dates.checkIn,
             checkOut: dates.checkOut,
             ...normalized,
-            customerName: input.customerName?.trim() || guest[0].name,
-            customerEmail: input.customerEmail?.trim().toLowerCase() || guest[0].email,
-            customerPhone: input.customerPhone?.trim() || guest[0].phone || undefined,
+            customerName: input.customerName?.trim() || customer.name,
+            customerEmail: input.customerEmail?.trim().toLowerCase() || customer.email,
+            customerPhone: input.customerPhone?.trim() || customer.phone || undefined,
             ...quote,
             priceSnapshot: this.snapshot(quote.priceSnapshot),
             paymentStatus: 'NONE',
@@ -192,7 +211,7 @@ export class BookingsService {
           },
           select: BOOKING_SELECT,
         });
-        await this.audit(tx, booking, userId, 'REQUEST_CREATED', undefined, {
+        await this.audit(tx, booking, userId ?? undefined, 'REQUEST_CREATED', undefined, {
           status: booking.status,
           checkIn: formatCalendarDate(booking.checkIn),
           checkOut: formatCalendarDate(booking.checkOut),
@@ -698,6 +717,14 @@ export class BookingsService {
   }
 
   async releaseOwnHold(id: string, userId: string) {
+    return this.releaseHold(id, userId);
+  }
+
+  async releaseGuestHold(id: string) {
+    return this.releaseHold(id, null);
+  }
+
+  private async releaseHold(id: string, userId: string | null) {
     const target = await this.prisma.booking.findFirst({
       where: { id, guestId: userId },
       select: { villaId: true },
@@ -718,7 +745,7 @@ export class BookingsService {
         },
         select: BOOKING_SELECT,
       });
-      await this.audit(tx, updated, userId, 'HOLD_RELEASED', { status: booking.status }, {
+      await this.audit(tx, updated, userId ?? undefined, 'HOLD_RELEASED', { status: booking.status }, {
         status: updated.status,
       }, 'Misafir bekletmeyi bıraktı.');
       return this.response(updated);
@@ -730,7 +757,7 @@ export class BookingsService {
    * sığmaz. Bildirimle birlikte bekletme adminin belirlediği ödeme süresi kadar
    * uzatılır — geceler dekont incelenirken açık kalmaz.
    */
-  async declarePayment(id: string, userId: string) {
+  async declarePayment(id: string, userId: string | null) {
     const target = await this.prisma.booking.findFirst({
       where: { id, guestId: userId },
       select: { villaId: true },
@@ -760,7 +787,7 @@ export class BookingsService {
         },
         select: BOOKING_SELECT,
       });
-      await this.audit(tx, updated, userId, 'PAYMENT_DECLARED', {
+      await this.audit(tx, updated, userId ?? undefined, 'PAYMENT_DECLARED', {
         paymentStatus: booking.paymentStatus,
         holdExpiresAt: booking.holdExpiresAt?.toISOString() ?? null,
       }, {
@@ -777,6 +804,12 @@ export class BookingsService {
     if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
     const serviceRequests = await this.prisma.bookingServiceRequest.findMany({ where: { bookingId: id }, orderBy: { createdAt: 'desc' } });
     return { ...this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments'))), serviceRequests };
+  }
+
+  async getGuest(id: string) {
+    const booking = await this.prisma.booking.findFirst({ where: { id, guestId: null }, select: BOOKING_SELECT });
+    if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
+    return this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments')));
   }
 
   async listOwn(userId: string, input: OwnBookingListDto) {
@@ -916,6 +949,16 @@ export class BookingsService {
     return { adults: input.adults, children: input.children ?? 0, infants: input.infants ?? 0 };
   }
 
+  private anonymousContact(input: CreateHoldDto) {
+    const name = input.customerName?.trim();
+    const email = input.customerEmail?.trim().toLowerCase();
+    const phone = input.customerPhone?.trim();
+    if (!name || !email || !phone) {
+      throw new BadRequestException('Üyesiz rezervasyon için ad soyad, e‑posta ve telefon zorunludur.');
+    }
+    return { name, email, phone };
+  }
+
   private snapshot(priceSnapshot: object, existing?: Prisma.JsonValue) {
     const previous = existing && typeof existing === 'object' && !Array.isArray(existing)
       ? (existing as Prisma.JsonObject).cancellationPolicy
@@ -999,7 +1042,7 @@ export class BookingsService {
   private audit(
     tx: Prisma.TransactionClient,
     booking: { id: string; villaId: string },
-    actorId: string,
+    actorId: string | undefined,
     action: string,
     before?: Prisma.InputJsonObject,
     after?: Prisma.InputJsonObject,

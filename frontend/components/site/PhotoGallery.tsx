@@ -17,10 +17,22 @@ export default function PhotoGallery({
   images: Img[];
 }) {
   const [open, setOpen] = useState<number | null>(null);
-  const visible = images.slice(0, 5);
-  const extra = images.length - visible.length;
+  const [visible, setVisible] = useState(false);
+  const visibleImages = images.slice(0, 5);
+  const extra = images.length - visibleImages.length;
 
-  const close = useCallback(() => setOpen(null), []);
+  useEffect(() => {
+    if (open === null) return;
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
+
+  const close = useCallback(() => {
+    if (open === null || !visible) return;
+    setVisible(false);
+    window.setTimeout(() => setOpen(null), 200);
+  }, [open, visible]);
+
   const prev = useCallback(() => setOpen((i) => (i === null ? null : (i - 1 + images.length) % images.length)), [images.length]);
   const next = useCallback(() => setOpen((i) => (i === null ? null : (i + 1) % images.length)), [images.length]);
 
@@ -44,15 +56,15 @@ export default function PhotoGallery({
   return (
     <>
       <div className="relative mx-auto mt-8 grid max-w-5xl grid-cols-2 gap-2 px-6 sm:grid-cols-4 sm:grid-rows-2 lg:px-10">
-        {visible.map((img, i) => {
-          const isLast = i === visible.length - 1 && extra > 0;
+        {visibleImages.map((img, i) => {
+          const isLast = i === visibleImages.length - 1 && extra > 0;
           return (
             <button
               key={img.id}
               type="button"
               onClick={() => setOpen(i)}
               aria-label={`${title} fotoğrafı ${i + 1}, büyütmek için tıklayın`}
-              className={`group relative cursor-pointer overflow-hidden rounded-xl bg-sand-deep ${
+              className={`group relative cursor-pointer overflow-hidden rounded-xl bg-sand-deep ring-1 ring-black/10 transition-transform active:scale-[0.96] ${
                 i === 0 ? 'col-span-2 row-span-2 aspect-square sm:aspect-auto' : 'aspect-square'
               }`}
             >
@@ -84,53 +96,58 @@ export default function PhotoGallery({
           role="dialog"
           aria-modal="true"
           aria-label={`${title} fotoğrafları`}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/95 p-4"
+          className={`fixed inset-0 z-[60] flex items-center justify-center bg-ink/95 p-4 transition-opacity duration-200 ease-out ${
+            visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
           onClick={close}
         >
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Kapat"
-            autoFocus
-            className="absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-full text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus:ring-2 focus:ring-white"
-          >
-            ×
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              prev();
-            }}
-            aria-label="Önceki fotoğraf"
-            className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus:ring-2 focus:ring-white sm:left-5"
-          >
-            ‹
-          </button>
-
           <div
-            className="relative h-[80vh] w-full max-w-4xl"
-            onClick={(e) => e.stopPropagation()}
+            className={`relative w-full transition-[transform,opacity] duration-200 ease-out ${
+              visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'
+            }`}
           >
-            <Image src={images[open].url} alt="" fill sizes="90vw" className="object-contain" />
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Kapat"
+              autoFocus
+              className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-0 sm:-top-2"
+            >
+              ×
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                prev();
+              }}
+              aria-label="Önceki fotoğraf"
+              className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:-left-6"
+            >
+              ‹
+            </button>
+
+            <div className="relative h-[80vh] w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+              <Image src={images[open].url} alt="" fill sizes="90vw" className="object-contain" />
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                next();
+              }}
+              aria-label="Sonraki fotoğraf"
+              className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:-right-6"
+            >
+              ›
+            </button>
+
+            <p className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[0.8rem] text-white/60">
+              {open + 1} / {images.length}
+            </p>
           </div>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              next();
-            }}
-            aria-label="Sonraki fotoğraf"
-            className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus:ring-2 focus:ring-white sm:right-5"
-          >
-            ›
-          </button>
-
-          <p className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[0.8rem] text-white/60">
-            {open + 1} / {images.length}
-          </p>
         </div>
       )}
     </>

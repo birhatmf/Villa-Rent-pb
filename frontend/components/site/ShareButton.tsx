@@ -11,16 +11,26 @@ import { useEffect, useRef, useState } from 'react';
  */
 export default function ShareButton({ title, className = '' }: { title: string; className?: string }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  function close() {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 150);
+  }
 
   useEffect(() => {
     if (!open) return;
     function onOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(event.target as Node)) close();
     }
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') close();
     }
     document.addEventListener('mousedown', onOutside);
     document.addEventListener('keydown', onKey);
@@ -28,7 +38,7 @@ export default function ShareButton({ title, className = '' }: { title: string; 
       document.removeEventListener('mousedown', onOutside);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, closing]);
 
   async function onClick() {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -39,7 +49,11 @@ export default function ShareButton({ title, className = '' }: { title: string; 
       }
       return;
     }
-    setOpen((value) => !value);
+    if (open) {
+      close();
+      return;
+    }
+    setOpen(true);
   }
 
   async function copyLink() {
@@ -69,13 +83,17 @@ export default function ShareButton({ title, className = '' }: { title: string; 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-20 w-56 rounded-xl border border-line bg-surface p-1.5 text-left shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)]">
+        <div
+          className={`absolute right-0 top-11 z-20 w-56 rounded-xl border border-line bg-surface p-1.5 text-left shadow-[0_10px_30px_-8px_rgba(0,0,0,0.25)] transition-[opacity,transform] duration-150 ease-out ${
+            closing ? 'pointer-events-none translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
+          }`}
+        >
           <a
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-            className="block rounded-lg px-3.5 py-2.5 text-[0.85rem] text-ink hover:bg-sand"
+            onClick={close}
+            className="block rounded-md px-3.5 py-2.5 text-[0.85rem] text-ink hover:bg-sand"
           >
             WhatsApp&apos;ta paylaş
           </a>
@@ -83,15 +101,15 @@ export default function ShareButton({ title, className = '' }: { title: string; 
             href={facebookHref}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-            className="block rounded-lg px-3.5 py-2.5 text-[0.85rem] text-ink hover:bg-sand"
+            onClick={close}
+            className="block rounded-md px-3.5 py-2.5 text-[0.85rem] text-ink hover:bg-sand"
           >
             Facebook&apos;ta paylaş
           </a>
           <button
             type="button"
             onClick={copyLink}
-            className="block w-full rounded-lg px-3.5 py-2.5 text-left text-[0.85rem] text-ink hover:bg-sand"
+            className="block w-full rounded-md px-3.5 py-2.5 text-left text-[0.85rem] text-ink hover:bg-sand"
           >
             {copied ? 'Bağlantı kopyalandı' : 'Instagram için bağlantıyı kopyala'}
           </button>

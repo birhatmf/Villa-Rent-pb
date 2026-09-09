@@ -105,7 +105,7 @@ export default function VillasTable({
               <tr key={v.id} className="border-b border-line/70 transition-colors hover:bg-sand/50">
                 <td className="px-6 py-3">
                   <Link href={editHref(v.id)} className="flex items-center gap-3">
-                    <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md bg-sand-deep">
+                    <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md bg-sand-deep ring-1 ring-black/10">
                       {v.images[0] && <Image src={v.images[0].url} alt="" fill sizes="64px" className="object-cover" />}
                     </div>
                     <span className="text-[0.9rem] text-ink transition-colors hover:text-gold">{v.title}</span>

@@ -50,6 +50,19 @@ export const previewBlock = (type: string, content: Record<string, any>) =>
     body: JSON.stringify({ type, content }),
   });
 
+export type UploadedContentImage = {
+  url: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+};
+
+export const uploadContentImage = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return req<UploadedContentImage>('/admin/media/images', { method: 'POST', body: form });
+};
+
 export const updateSection = (id: string, data: { content?: Record<string, any>; visible?: boolean }) =>
   req<AdminSection>(`/admin/sections/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 
@@ -187,12 +200,6 @@ export const reviewHostApplication = (
   req<HostApplicationDetail>(`/admin/host-applications/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
-  });
-
-export const linkHostApplication = (id: string, userId?: string) =>
-  req<{ application: HostApplicationDetail; tempPassword?: string }>(`/admin/host-applications/${id}/link-host`, {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
   });
 
 export const hostApplicationDownloadUrl = (appId: string, docId: string) =>

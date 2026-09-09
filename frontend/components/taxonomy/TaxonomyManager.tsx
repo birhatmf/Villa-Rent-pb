@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { regionsApi, conceptsApi, type TaxonomyInput, type TaxonomyItem } from '@/lib/adminApi';
+import { ImageUploadField } from '@/components/admin/ImageUploadField';
 
 const APIS = { regions: regionsApi, concepts: conceptsApi } as const;
 
@@ -73,7 +74,7 @@ export default function TaxonomyManager({
           {items === null && !error && <p className="py-6 text-[0.88rem] text-muted">Yükleniyor…</p>}
           {items?.map((item, i) => (
             <div key={item.id} className="flex items-center gap-4 py-4">
-              <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-sand-deep">
+              <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-sand-deep ring-1 ring-black/10">
                 <Image src={item.image} alt="" fill sizes="80px" className="object-cover" />
               </div>
               <div className="min-w-0 flex-1">
@@ -196,19 +197,11 @@ function EditDrawer({
             </label>
           )}
 
-          <label className="block">
-            <span className="eyebrow text-muted">Görsel URL *</span>
-            <input
-              value={form.image}
-              onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-              placeholder="https://…"
-              className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2 text-[0.9rem] text-ink outline-none focus:border-olive-soft"
-            />
-            {form.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.image} alt="" className="mt-2 h-28 w-full rounded-md border border-line object-cover" />
-            )}
-          </label>
+          <ImageUploadField
+            label="Görsel *"
+            value={form.image}
+            onChange={(image) => setForm((current) => ({ ...current, image }))}
+          />
 
           {error && <p className="text-[0.85rem] text-red-700">{error}</p>}
         </div>

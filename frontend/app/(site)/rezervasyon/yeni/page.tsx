@@ -6,8 +6,14 @@ import { Suspense, useEffect, useState } from 'react';
 import ReservationSteps from '@/components/site/ReservationSteps';
 import { formatPrice, type AvailabilityResult, type VillaPublicDetail } from '@/lib/api';
 import { me, type AccountUser } from '@/lib/authApi';
-import { ApiError } from '@/lib/http';
-import { checkAvailability, createBookingRequest, createHold, getPublicVilla } from '@/lib/reservationApi';
+import {
+  checkAvailability,
+  createBookingRequest,
+  createGuestBookingRequest,
+  createGuestHold,
+  createHold,
+  getPublicVilla,
+} from '@/lib/reservationApi';
 
 const REASON: Record<string, string> = {
   SALES_PAUSED: 'Bu villa şu anda rezervasyona kapalı.',
@@ -50,6 +56,7 @@ function NewReservationForm() {
   };
 
   const [user, setUser] = useState<AccountUser | null>(null);
+  const [ready, setReady] = useState(false);
   const [villa, setVilla] = useState<VillaPublicDetail | null>(null);
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null);
   const [contact, setContact] = useState({ customerName: '', customerEmail: '', customerPhone: '' });
@@ -63,30 +70,23 @@ function NewReservationForm() {
       return;
     }
     let cancelled = false;
-    // Oturum zorunlu: bekletme kaydı üyeye bağlanır.
-    me()
-      .then((account) => {
+    Promise.all([getPublicVilla(slug), checkAvailability(slug, stay), me().catch(() => null)])
+      .then(([loadedVilla, loadedAvailability, account]) => {
         if (cancelled) return;
+        setVilla(loadedVilla);
+        setAvailability(loadedAvailability);
         setUser(account);
-        setContact({
-          customerName: account.name,
-          customerEmail: account.email,
-          customerPhone: account.phone ?? '',
-        });
-        return Promise.all([getPublicVilla(slug), checkAvailability(slug, stay)]);
-      })
-      .then((loaded) => {
-        if (cancelled || !loaded) return;
-        setVilla(loaded[0]);
-        setAvailability(loaded[1]);
+        if (account?.role === 'GUEST') {
+          setContact({
+            customerName: account.name,
+            customerEmail: account.email,
+            customerPhone: account.phone ?? '',
+          });
+        }
+        setReady(true);
       })
       .catch((cause) => {
         if (cancelled) return;
-        if (cause instanceof ApiError && cause.status === 401) {
-          const next = `/rezervasyon/yeni?${params.toString()}`;
-          router.replace(`/giris?next=${encodeURIComponent(next)}`);
-          return;
-        }
         setLoadError(cause instanceof Error ? cause.message : 'Rezervasyon hazırlanamadı.');
       });
     return () => { cancelled = true; };
@@ -99,15 +99,20 @@ function NewReservationForm() {
     setBusy(true);
     setError(null);
     try {
-      const requestable = availability && (availability.bookingMode === 'REQUEST' || availability.reasons.every((reason) => reason === 'SYNC_UNHEALTHY'));
-      const booking = await (requestable ? createBookingRequest : createHold)({
+      const syncOnly = Boolean(availability && !availability.available && availability.reasons.length > 0 && availability.reasons.every((reason) => reason === 'SYNC_UNHEALTHY'));
+      const requestable = Boolean(syncOnly || (availability?.available && availability.bookingMode === 'REQUEST'));
+      const member = user?.role === 'GUEST';
+      const create = member
+        ? requestable ? createBookingRequest : createHold
+        : requestable ? createGuestBookingRequest : createGuestHold;
+      const booking = await create({
         villaId: villa.id,
         ...stay,
         customerName: contact.customerName.trim() || undefined,
         customerEmail: contact.customerEmail.trim() || undefined,
         customerPhone: contact.customerPhone.trim() || undefined,
       });
-      router.replace(`/hesabim/seyahatlerim/${booking.id}`);
+      router.replace(member ? `/hesabim/seyahatlerim/${booking.id}` : `/rezervasyon/${booking.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Rezervasyon oluşturulamadı.');
       setBusy(false);
@@ -115,10 +120,10 @@ function NewReservationForm() {
   }
 
   if (loadError) return <Centered>{loadError}</Centered>;
-  if (!user || !villa || !availability) return <Centered>Yükleniyor…</Centered>;
+  if (!ready || !villa || !availability) return <Centered>Yükleniyor…</Centered>;
 
   const quote = availability.quote;
-  const syncOnly = !availability.available && availability.reasons.every((reason) => reason === 'SYNC_UNHEALTHY');
+  const syncOnly = !availability.available && availability.reasons.length > 0 && availability.reasons.every((reason) => reason === 'SYNC_UNHEALTHY');
   const requestable = syncOnly || (availability.available && availability.bookingMode === 'REQUEST');
   const blocked = !availability.available && !syncOnly;
 
@@ -136,6 +141,21 @@ function NewReservationForm() {
 
       <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_340px]">
         <form onSubmit={submit} className="space-y-8">
+          {user?.role === 'GUEST' ? (
+            <p className="rounded-xl border border-olive/25 bg-olive/5 px-4 py-3 text-[0.84rem] text-ink-soft">
+              Rezervasyonunuz hesabınıza kaydedilecek ve Seyahatlerim bölümünden takip edilebilecek.
+            </p>
+          ) : (
+            <div className="rounded-xl border border-line bg-sand/35 px-4 py-4 text-[0.84rem] leading-relaxed text-muted">
+              <p>Üye olmadan devam edebilirsiniz. Rezervasyon bağlantınız bu tarayıcıda güvenli biçimde saklanır.</p>
+              <p className="mt-2">
+                Hesabınız varsa <Link href={`/giris?next=${encodeURIComponent(`/rezervasyon/yeni?${params.toString()}`)}`} className="text-ink underline underline-offset-4">giriş yapın</Link>
+                {' veya '}
+                <Link href={`/kayit?next=${encodeURIComponent(`/rezervasyon/yeni?${params.toString()}`)}`} className="text-ink underline underline-offset-4">üye olun</Link>.
+              </p>
+            </div>
+          )}
+
           <section>
             <h2 className="border-b border-line pb-3 font-display text-xl font-light text-ink">Konaklama</h2>
             <dl className="mt-5 grid grid-cols-2 gap-x-8 gap-y-4 text-[0.9rem]">
@@ -155,7 +175,7 @@ function NewReservationForm() {
           <section>
             <h2 className="border-b border-line pb-3 font-display text-xl font-light text-ink">İletişim</h2>
             <p className="mt-3 text-[0.85rem] text-muted">
-              Rezervasyon yazışmaları bu bilgilere gider. Hesabınızdaki bilgiler dolduruldu, gerekirse değiştirin.
+              Rezervasyon yazışmaları bu bilgilere gider. {user?.role === 'GUEST' ? 'Hesabınızdaki bilgiler dolduruldu; gerekirse değiştirin.' : 'Rezervasyonunuzu takip edebilmek için doğru bilgi girin.'}
             </p>
             <div className="mt-5 space-y-5">
               <Input label="Ad soyad" value={contact.customerName} required minLength={2}

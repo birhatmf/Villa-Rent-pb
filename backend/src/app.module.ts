@@ -5,12 +5,15 @@ import { PrismaService } from './prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { AdminController } from './admin/admin.controller';
 import { AdminService } from './admin/admin.service';
+import { AdminMediaController } from './admin/admin-media.controller';
+import { AdminMediaService } from './admin/admin-media.service';
 import { UsersController } from './admin/users.controller';
 import { UsersService } from './admin/users.service';
 import { FavoritesController } from './favorites/favorites.controller';
 import { FavoritesService } from './favorites/favorites.service';
 import { AdminBookingsController, HostBookingsController } from './bookings/admin-bookings.controller';
 import { BookingsController } from './bookings/bookings.controller';
+import { GuestBookingsController } from './bookings/guest-bookings.controller';
 import { AdminServiceRequestsController, HostServiceRequestsController } from './bookings/service-requests.controller';
 import { BookingsService } from './bookings/bookings.service';
 import { OccupancyService } from './bookings/occupancy.service';
@@ -59,6 +62,7 @@ import { ReviewsService } from './reviews/reviews.service';
     AdminRegionsController,
     AdminConceptsController,
     AdminController,
+    AdminMediaController,
     UsersController,
     SettingsController,
     AdminSettingsController,
@@ -70,6 +74,7 @@ import { ReviewsService } from './reviews/reviews.service';
     AdminServiceRequestsController,
     HostServiceRequestsController,
     BookingsController,
+    GuestBookingsController,
     AdminCalendarController,
     HostCalendarController,
     AdminIcalController,
@@ -90,6 +95,7 @@ import { ReviewsService } from './reviews/reviews.service';
     PrismaService,
     PagesService,
     AdminService,
+    AdminMediaService,
     UsersService,
     SettingsService,
     HostApplicationsService,

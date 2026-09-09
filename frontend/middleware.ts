@@ -15,7 +15,10 @@ export function middleware(req: NextRequest) {
 
   // Girişliyken giriş/kayıt ekranlarında oyalanma.
   if (pathname === '/giris' || pathname === '/kayit') {
-    return hasToken ? redirect('/hesabim') : NextResponse.next();
+    if (!hasToken) return NextResponse.next();
+    if (session?.role === 'ADMIN') return redirect('/admin');
+    if (session?.role === 'HOST') return redirect('/hesabim/ev-sahibi');
+    return redirect('/hesabim');
   }
 
   if (pathname === '/admin/login') {
@@ -29,16 +32,20 @@ export function middleware(req: NextRequest) {
       url.searchParams.set('next', pathname + search);
       return NextResponse.redirect(url);
     }
-    // Ev sahibi araçları yalnızca HOST/ADMIN — seyahatler her girişli role açıktır.
-    if (
-      (pathname.startsWith('/hesabim/villalarim') || pathname.startsWith('/hesabim/ev-sahibi')) &&
-      session &&
-      session.role === 'GUEST'
-    ) {
-      return redirect('/hesabim');
+    const ownerRoute = pathname.startsWith('/hesabim/villalarim') || pathname.startsWith('/hesabim/ev-sahibi');
+    if (ownerRoute && session?.role !== 'HOST') {
+      return redirect(session?.role === 'ADMIN' ? '/admin' : '/hesabim');
     }
+
+    const customerRoute = pathname === '/hesabim' || pathname.startsWith('/hesabim/seyahatlerim') || pathname.startsWith('/hesabim/yorumlarim');
+    if (customerRoute && session?.role === 'HOST') return redirect('/hesabim/ev-sahibi');
+    if (customerRoute && session?.role === 'ADMIN') return redirect('/admin');
+
     return NextResponse.next();
   }
+
+  if (pathname === '/ev-sahibi' && session?.role === 'HOST') return redirect('/hesabim/ev-sahibi');
+  if (pathname === '/ev-sahibi' && session?.role === 'ADMIN') return redirect('/admin');
 
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     if (!hasToken) {
@@ -54,4 +61,4 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ['/admin/:path*', '/hesabim/:path*', '/giris', '/kayit'] };
+export const config = { matcher: ['/admin/:path*', '/hesabim/:path*', '/giris', '/kayit', '/ev-sahibi'] };

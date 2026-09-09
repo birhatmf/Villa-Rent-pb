@@ -19,7 +19,7 @@ export type RegisterInput = {
   name: string;
   email: string;
   password: string;
-  phone?: string;
+  phone: string;
   marketingOptIn?: boolean;
 };
 
@@ -53,7 +53,7 @@ export class AuthService {
         data: {
           email,
           name: input.name.trim(),
-          phone: input.phone?.trim() || null,
+          phone: input.phone.trim(),
           passwordHash: await bcrypt.hash(input.password, 10),
           role: 'GUEST',
           kvkkAcceptedAt: new Date(),
