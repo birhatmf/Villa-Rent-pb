@@ -11,11 +11,13 @@ export function ImageUploadField({
   value,
   onChange,
   hint,
+  contain = false,
 }: {
   label: string;
   value?: string;
   onChange: (url: string) => void;
   hint?: string;
+  contain?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,11 @@ export function ImageUploadField({
       <div className="mt-1.5 overflow-hidden rounded-lg border border-line bg-surface">
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="" className="h-36 w-full bg-sand object-cover" />
+          <img
+            src={value}
+            alt=""
+            className={`h-36 w-full bg-sand ${contain ? 'object-contain p-4' : 'object-cover'}`}
+          />
         ) : (
           <div className="flex h-28 items-center justify-center bg-sand/50 text-[0.8rem] text-muted">
             Görsel seçilmedi

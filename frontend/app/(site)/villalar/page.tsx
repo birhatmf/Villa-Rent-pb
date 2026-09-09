@@ -5,7 +5,7 @@ import VillaFilters from '@/components/site/VillaFilters';
 import { getVillaFilterOptions, listVillas, VillaListError, type VillaListParams } from '@/lib/api';
 
 export const metadata: Metadata = {
-  title: 'Kiralık villalar · Villa Kiralama',
+  title: 'Kiralık villalar',
   description: 'Bölge, konsept, tatil tarihleri ve misafir sayısına göre kiralık villaları keşfedin.',
 };
 

@@ -3,7 +3,7 @@ import TaxonomyIndex from '@/components/site/TaxonomyIndex';
 import { listConcepts } from '@/lib/api';
 
 export const metadata: Metadata = {
-  title: 'Villa konseptleri · Villa Kiralama',
+  title: 'Villa konseptleri',
   description: 'Denize sıfır, balayı, kış ve korunaklı villa seçkilerini keşfedin.',
 };
 

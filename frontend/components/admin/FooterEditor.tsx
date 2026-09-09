@@ -6,6 +6,7 @@ import Footer from '@/components/site/Footer';
 import WhatsAppButton from '@/components/site/WhatsAppButton';
 import { getSetting, saveSetting } from '@/lib/adminApi';
 import { FOOTER_DEFAULTS, FOOTER_FIELDS } from '@/lib/footerSchema';
+import { BRANDING_DEFAULTS, normalizeBranding, type Branding } from '@/lib/branding';
 import { FieldInput } from './Fields';
 
 export default function FooterEditor() {
@@ -14,10 +15,14 @@ export default function FooterEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [branding, setBranding] = useState<Branding>(BRANDING_DEFAULTS);
 
   useEffect(() => {
-    getSetting('footer')
-      .then((v) => setDraft({ ...FOOTER_DEFAULTS, ...v }))
+    Promise.all([getSetting('footer'), getSetting('branding')])
+      .then(([footer, brandingValue]) => {
+        setDraft({ ...FOOTER_DEFAULTS, ...footer });
+        setBranding(normalizeBranding(brandingValue));
+      })
       .catch((e) => setError(e.message));
   }, []);
 
@@ -126,7 +131,7 @@ export default function FooterEditor() {
             }}
             onSubmitCapture={(e) => e.preventDefault()}
           >
-            <Footer content={draft} />
+            <Footer content={draft} branding={branding} />
           </div>
 
           {/* Yüzen buton öngösterimi: panelin kendi alt kenarına yapışsın diye sticky. */}

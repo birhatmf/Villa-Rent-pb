@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { logout } from '@/lib/authApi';
+import type { Branding } from '@/lib/branding';
 import { readSession, type SessionUser } from '@/lib/session';
+import BrandMark from './BrandMark';
 
 const NAV = [
   { label: 'Villalar', href: '/villalar' },
@@ -14,7 +16,7 @@ const NAV = [
   { label: 'İletişim', href: '/iletisim' },
 ];
 
-export default function Header() {
+export default function Header({ branding }: { branding: Branding }) {
   const pathname = usePathname();
   const router = useRouter();
   const [solid, setSolid] = useState(false);
@@ -63,7 +65,11 @@ export default function Header() {
             light ? 'text-white' : 'text-ink'
           }`}
         >
-          villa<span className={light ? 'text-white/60' : 'text-gold'}>sepeti</span>
+          <BrandMark
+            branding={branding}
+            onDark={light}
+            className={`max-h-10 max-w-[190px] text-[1.45rem] ${light ? 'text-white' : 'text-ink'}`}
+          />
         </Link>
 
         <nav className="hidden items-center gap-9 lg:flex">

@@ -3,7 +3,7 @@ import TaxonomyIndex from '@/components/site/TaxonomyIndex';
 import { listRegions } from '@/lib/api';
 
 export const metadata: Metadata = {
-  title: 'Villa bölgeleri · Villa Kiralama',
+  title: 'Villa bölgeleri',
   description: 'Kaş, Kalkan, Bodrum, Fethiye ve Türkiye’nin seçkin villa bölgelerini keşfedin.',
 };
 

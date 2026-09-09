@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { BRANDING_DEFAULTS, type Branding } from '@/lib/branding';
+import BrandMark from './BrandMark';
 import SocialIcon from './SocialIcon';
 
 type FooterLink = { label?: string; href?: string };
@@ -22,7 +24,13 @@ type FooterContent = {
 const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`;
 const valid = (l?: FooterLink) => l?.label && l?.href;
 
-export default function Footer({ content = {} }: { content?: FooterContent }) {
+export default function Footer({
+  content = {},
+  branding = BRANDING_DEFAULTS,
+}: {
+  content?: FooterContent;
+  branding?: Branding;
+}) {
   const { brand, newsletter, columns = [], contact, social = [], legal = [], copyright } = content;
   const socials = social.filter((s) => s.platform && s.url);
 
@@ -66,8 +74,8 @@ export default function Footer({ content = {} }: { content?: FooterContent }) {
       <div className="mx-auto max-w-[1320px] px-6 py-20 lg:px-10">
         <div className="grid gap-14 lg:grid-cols-[1.25fr_2fr]">
           <div>
-            <Link href="/" className="font-display text-3xl leading-none tracking-tight text-ink">
-              villa<span className="text-gold">sepeti</span>
+            <Link href="/" className="inline-block font-display text-3xl leading-none tracking-tight text-ink">
+              <BrandMark branding={branding} className="max-h-12 max-w-[240px] text-3xl text-ink" />
             </Link>
 
             {brand?.description && (
@@ -165,7 +173,14 @@ export default function Footer({ content = {} }: { content?: FooterContent }) {
         </div>
 
         <div className="mt-16 flex flex-col gap-4 border-t border-ink/10 pt-8 text-[0.85rem] text-muted lg:flex-row lg:items-center lg:justify-between">
-          {copyright && <p>{copyright.replace('{year}', String(new Date().getFullYear()))}</p>}
+          {copyright && (
+            <p>
+              {copyright
+                .replace('Villa Sepeti', '{company}')
+                .replace('{year}', String(new Date().getFullYear()))
+                .replace('{company}', branding.companyName)}
+            </p>
+          )}
           {legal.filter(valid).length > 0 && (
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               {legal.filter(valid).map((l) => (

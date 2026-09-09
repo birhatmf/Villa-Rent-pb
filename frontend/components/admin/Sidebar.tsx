@@ -5,9 +5,17 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ADMIN_NAV, NAV_ICONS, OWNER_NAV } from '@/lib/adminNav';
 import { logout } from '@/lib/authApi';
+import { BRANDING_DEFAULTS, type Branding } from '@/lib/branding';
 import { readSession } from '@/lib/session';
+import BrandMark from '@/components/site/BrandMark';
 
-export default function Sidebar({ scope = 'admin' }: { scope?: 'admin' | 'owner' }) {
+export default function Sidebar({
+  scope = 'admin',
+  branding = BRANDING_DEFAULTS,
+}: {
+  scope?: 'admin' | 'owner';
+  branding?: Branding;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -60,11 +68,11 @@ export default function Sidebar({ scope = 'admin' }: { scope?: 'admin' | 'owner'
           title="Siteyi yeni sekmede aç"
           className="min-w-0 flex-1 truncate font-display text-[1.1rem] leading-none tracking-tight text-ink"
         >
-          {collapsed ? 'v' : (
-            <>
-              villa<span className="text-gold">sepeti</span>
-            </>
-          )}
+          <BrandMark
+            branding={branding}
+            compact={collapsed}
+            className={collapsed ? 'text-lg text-ink' : 'max-h-8 max-w-[170px] text-[1.1rem] text-ink'}
+          />
         </Link>
       </div>
 

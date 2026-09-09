@@ -13,6 +13,7 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     title: 'İçerik',
     items: [
+      { label: 'Marka & logo', href: '/admin/marka', icon: 'brand' },
       { label: 'Sayfalar', href: '/admin/pages', icon: 'pages' },
       { label: 'Footer & iletişim', href: '/admin/footer', icon: 'footer' },
     ],
@@ -69,6 +70,7 @@ export const OWNER_NAV: NavGroup[] = [
 /** 1.3 kalınlıkta, 24'lük grid — site ikonlarıyla aynı dil. */
 export const NAV_ICONS: Record<string, string> = {
   home: 'M3.5 10.5L12 4l8.5 6.5 M6 9.8V20h12V9.8',
+  brand: 'M5 5h14v14H5z M8.5 15.5l2.6-3 2.1 2.1 2.8-3.6 2.5 3.2 M9 9h.01',
   pages: 'M6 3.5h8l4 4V20a1 1 0 01-1 1H6a1 1 0 01-1-1V4.5a1 1 0 011-1z M14 3.5V8h4 M8.5 12.5h7 M8.5 16h4.5',
   footer: 'M3.5 5.5h17v13h-17z M3.5 14.5h17 M7 17.5h3',
   villa: 'M3.5 10.5L12 4l8.5 6.5 M6 9.8V20h12V9.8 M10 20v-5h4v5',

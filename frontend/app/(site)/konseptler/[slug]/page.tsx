@@ -9,7 +9,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const concept = await getConceptBySlug((await params).slug);
   if (!concept) return {};
   return {
-    title: `${concept.name} · Villa Kiralama`,
+    title: concept.name,
     description: concept.description ?? concept.subtitle ?? `${concept.name} seçkisindeki kiralık villaları keşfedin.`,
   };
 }

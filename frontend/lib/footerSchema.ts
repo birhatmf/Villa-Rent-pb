@@ -121,7 +121,7 @@ export const FOOTER_FIELDS: Field[] = [
     key: 'copyright',
     label: 'Telif satırı',
     type: 'text',
-    hint: '{year} yazarsanız içinde bulunulan yıl otomatik yazılır.',
+    hint: '{year} otomatik yılı, {company} marka ayarlarındaki firma adını yazar.',
   },
 ];
 
@@ -133,5 +133,5 @@ export const FOOTER_DEFAULTS = {
   social: [],
   whatsapp: { enabled: false, phone: '', message: '', label: '', position: 'right' },
   legal: [],
-  copyright: '© {year} Villa Sepeti.',
+  copyright: '© {year} {company}.',
 };

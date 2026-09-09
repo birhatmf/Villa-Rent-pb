@@ -9,7 +9,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const region = await getRegionBySlug((await params).slug);
   if (!region) return {};
   return {
-    title: `${region.name} kiralık villaları · Villa Kiralama`,
+    title: `${region.name} kiralık villaları`,
     description: region.subtitle ?? `${region.name} bölgesindeki seçilmiş kiralık villaları keşfedin.`,
   };
 }

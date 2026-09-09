@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { login } from '@/lib/authApi';
 import { safeInternalPath } from '@/lib/navigation';
+import BrandMark from '@/components/site/BrandMark';
+import { useBranding } from '@/lib/useBranding';
 
 export default function LoginPage() {
   return (
@@ -21,6 +23,7 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const branding = useBranding();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +44,7 @@ function LoginForm() {
       <div className="flex items-center justify-center px-6 py-16">
         <form onSubmit={onSubmit} className="w-full max-w-sm">
           <p className="font-display text-2xl leading-none tracking-tight text-ink">
-            villa<span className="text-gold">sepeti</span>
+            <BrandMark branding={branding} className="max-h-10 max-w-[220px] text-2xl text-ink" />
           </p>
           <h1 className="mt-10 font-display text-4xl font-light leading-tight tracking-[-0.02em] text-ink">
             Yönetim paneli

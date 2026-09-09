@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Fraunces, Inter } from 'next/font/google';
 import Reveal from '@/components/site/Reveal';
+import { getSetting } from '@/lib/api';
+import { normalizeBranding } from '@/lib/branding';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -16,10 +18,24 @@ const inter = Inter({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: 'Villa Kiralama',
-  description: 'Bizzat gezilmiş, özel havuzlu kiralık villalar.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = normalizeBranding(await getSetting('branding'));
+  return {
+    title: {
+      default: branding.companyName,
+      template: `%s · ${branding.shortName}`,
+    },
+    applicationName: branding.companyName,
+    description: 'Bizzat gezilmiş, özel havuzlu kiralık villalar.',
+    icons: branding.favicon
+      ? {
+          icon: [{ url: branding.favicon }],
+          shortcut: branding.favicon,
+          apple: branding.favicon,
+        }
+      : undefined,
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

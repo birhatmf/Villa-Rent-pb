@@ -144,10 +144,14 @@ export const getRegionBySlug = (slug: string) => getTaxonomy<Region>('regions', 
 export const getConceptBySlug = (slug: string) => getTaxonomy<Concept>('concepts', slug);
 
 export async function getSetting(key: string): Promise<Record<string, any>> {
-  const res = await fetch(`${API}/settings/${key}`, { cache: 'no-store' });
-  // Ayar okunamazsa site çökmesin — bileşenler boş objeyle de render eder.
-  if (!res.ok) return {};
-  return res.json();
+  try {
+    const res = await fetch(`${API}/settings/${key}`, { cache: 'no-store' });
+    // Ayar okunamazsa site çökmesin — bileşenler boş objeyle de render eder.
+    if (!res.ok) return {};
+    return await res.json();
+  } catch {
+    return {};
+  }
 }
 
 export const formatPrice = (value: number, currency = 'TRY') =>
