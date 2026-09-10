@@ -9,6 +9,7 @@ import StatBar from './StatBar';
 import Testimonials from './Testimonials';
 import TextContent from './TextContent';
 import ValueProps from './ValueProps';
+import { localizeContent } from '@/lib/localization';
 
 type BlockComponent = React.ComponentType<{ content: Record<string, any> }>;
 
@@ -26,7 +27,7 @@ export const BLOCKS: Record<string, BlockComponent> = {
   textContent: TextContent,
 };
 
-export function renderSections(sections: Section[]) {
+export function renderSections(sections: Section[], locale = 'tr') {
   return sections.map((s) => {
     const Block = BLOCKS[s.type];
     if (!Block) {
@@ -38,7 +39,7 @@ export function renderSections(sections: Section[]) {
     // data-section-id: inline editörün DOM'da bloğu bulması için.
     return (
       <div key={s.id} data-section-id={s.id} data-section-type={s.type}>
-        <Block content={s.content} />
+        <Block content={localizeContent(s.content, locale)} />
       </div>
     );
   });

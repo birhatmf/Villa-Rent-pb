@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import Link from '@/components/site/LocaleLink';
+import { useTranslations } from 'next-intl';
 import { BRANDING_DEFAULTS, type Branding } from '@/lib/branding';
 import BrandMark from './BrandMark';
 import SocialIcon from './SocialIcon';
@@ -31,6 +32,7 @@ export default function Footer({
   content?: FooterContent;
   branding?: Branding;
 }) {
+  const t = useTranslations('Footer');
   const { brand, newsletter, columns = [], contact, social = [], legal = [], copyright } = content;
   const socials = social.filter((s) => s.platform && s.url);
 
@@ -55,15 +57,15 @@ export default function Footer({
                 <input
                   type="email"
                   required
-                  aria-label={newsletter.placeholder || 'E‑posta adresiniz'}
-                  placeholder={newsletter.placeholder || 'E‑posta adresiniz'}
+                  aria-label={newsletter.placeholder || t('email')}
+                  placeholder={newsletter.placeholder || t('email')}
                   className="w-full bg-transparent text-[0.98rem] text-ink outline-none placeholder:text-muted/70"
                 />
                 <button
                   type="submit"
                   className="shrink-0 whitespace-nowrap text-[0.88rem] text-ink transition-colors hover:text-gold"
                 >
-                  {newsletter.cta || 'Kaydol'} →
+                  {newsletter.cta || t('subscribe')} →
                 </button>
               </div>
             </form>
@@ -125,7 +127,7 @@ export default function Footer({
                       <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1116 0z" />
                       <circle cx="12" cy="10" r="2.8" />
                     </svg>
-                    {contact.mapLabel || 'Haritada göster'}
+                    {contact.mapLabel || t('map')}
                   </a>
                 )}
               </div>

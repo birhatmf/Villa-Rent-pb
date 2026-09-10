@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
+import Link from '@/components/site/LocaleLink';
 import DateRangeField from '@/components/blocks/DateRangeField';
 import GuestsField from '@/components/blocks/GuestsField';
 import type { VillaFilterOption, VillaListParams } from '@/lib/api';
@@ -11,6 +12,9 @@ export default function VillaFilters({ params, regions, concepts }: {
   regions: VillaFilterOption[];
   concepts: VillaFilterOption[];
 }) {
+  const locale = useLocale();
+  const t = useTranslations('Filters');
+  const search = useTranslations('Search');
   const [open, setOpen] = useState(false);
   const [concept, setConcept] = useState(params.konsept ?? '');
   const [error, setError] = useState('');
@@ -19,7 +23,7 @@ export default function VillaFilters({ params, regions, concepts }: {
 
   return (
     <form
-      action="/villalar"
+      action={`${locale === 'tr' ? '' : `/${locale}`}/villalar`}
       method="get"
       className="relative rounded-2xl border border-line bg-surface text-ink [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-olive [&_input]:focus-visible:outline-2 [&_input]:focus-visible:outline-olive [&_select]:focus-visible:outline-2 [&_select]:focus-visible:outline-olive"
       onSubmit={(event) => {
@@ -29,7 +33,7 @@ export default function VillaFilters({ params, regions, concepts }: {
         if ((!!from !== !!to) || (from && to && from >= to)) {
           event.preventDefault();
           setOpen(true);
-          setError('Giriş ve çıkış tarihlerini birlikte seçin. Çıkış tarihi girişten sonra olmalı.');
+          setError(t('dateError'));
         } else {
           setError('');
         }
@@ -42,21 +46,21 @@ export default function VillaFilters({ params, regions, concepts }: {
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between px-6 py-5 text-sm font-medium lg:hidden"
       >
-        <span>{active ? 'Aramanızı düzenleyin' : 'Villa arayın ve filtreleyin'}</span>
+        <span>{active ? t('edit') : t('open')}</span>
         <span aria-hidden="true">{open ? '−' : '+'}</span>
       </button>
 
       <div id="villa-filter-fields" className={`${open ? 'block' : 'hidden'} lg:block`}>
         <div className="grid gap-px rounded-t-2xl bg-line/60 lg:grid-cols-[1fr_0.9fr_1.5fr_1fr]">
           <label className={`${field} lg:rounded-tl-2xl`}>
-            <span className="eyebrow text-muted">Villa adı</span>
-            <input name="q" defaultValue={params.q} maxLength={200} placeholder="Bir villa arayın" className="w-full min-w-0 text-[0.95rem] outline-offset-4 placeholder:text-muted" />
+            <span className="eyebrow text-muted">{t('villaName')}</span>
+            <input name="q" defaultValue={params.q} maxLength={200} placeholder={t('villaPlaceholder')} className="w-full min-w-0 text-[0.95rem] outline-offset-4 placeholder:text-muted" />
           </label>
           <label className={field}>
-            <span className="eyebrow text-muted">Bölge</span>
+            <span className="eyebrow text-muted">{t('region')}</span>
             <select name="bolge" defaultValue={params.bolge ?? ''} className="min-w-0 bg-transparent text-[0.95rem] outline-offset-4">
-              <option value="">Tüm bölgeler</option>
-              {params.bolge && !regions.some((r) => r.slug === params.bolge) && <option value={params.bolge}>Bölge bulunamadı</option>}
+              <option value="">{t('allRegions')}</option>
+              {params.bolge && !regions.some((r) => r.slug === params.bolge) && <option value={params.bolge}>{search('noRegion')}</option>}
               {regions.map((r) => <option key={r.id} value={r.slug}>{r.name}</option>)}
             </select>
           </label>
@@ -70,10 +74,10 @@ export default function VillaFilters({ params, regions, concepts }: {
         </div>
 
         <fieldset className="border-t border-line px-6 pt-5 pb-6">
-          <legend className="sr-only">Villa konsepti</legend>
+          <legend className="sr-only">{t('concept')}</legend>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="mr-2 text-xs text-muted">Nasıl bir tatil?</span>
-            {[{ id: 'all', slug: '', name: 'Tüm konseptler' }, ...concepts].map((c) => (
+            <span className="mr-2 text-xs text-muted">{t('holidayType')}</span>
+            {[{ id: 'all', slug: '', name: t('allConcepts') }, ...concepts].map((c) => (
               <button
                 type="button"
                 key={c.id}
@@ -90,16 +94,16 @@ export default function VillaFilters({ params, regions, concepts }: {
 
         <div className="flex flex-col gap-4 rounded-b-2xl border-t border-line bg-canvas/60 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <label className="flex items-center gap-3 text-sm">
-            <span className="text-muted">Sıralama</span>
+            <span className="text-muted">{t('sort')}</span>
             <select name="sort" defaultValue={params.sort ?? 'yeni'} className="min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-ink">
-              <option value="yeni">Yeni eklenenler</option>
-              <option value="fiyat_artan">Fiyat: düşükten yükseğe</option>
-              <option value="fiyat_azalan">Fiyat: yüksekten düşüğe</option>
+              <option value="yeni">{t('newest')}</option>
+              <option value="fiyat_artan">{t('priceAsc')}</option>
+              <option value="fiyat_azalan">{t('priceDesc')}</option>
             </select>
           </label>
           <div className="flex items-center justify-between gap-5">
-            <Link href="/villalar" className="text-xs text-muted underline underline-offset-4 hover:text-ink">Filtreleri temizle</Link>
-            <button type="submit" className="min-h-12 rounded-lg bg-ink px-7 py-3 text-sm text-canvas transition-colors hover:bg-olive">Villa ara <span aria-hidden="true" className="ml-3">→</span></button>
+            <Link href="/villalar" className="text-xs text-muted underline underline-offset-4 hover:text-ink">{t('clearFilters')}</Link>
+            <button type="submit" className="min-h-12 rounded-lg bg-ink px-7 py-3 text-sm text-canvas transition-colors hover:bg-olive">{t('search')} <span aria-hidden="true" className="ml-3">→</span></button>
           </div>
         </div>
       </div>

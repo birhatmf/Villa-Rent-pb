@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import FavoriteButton from './FavoriteButton';
 import ShareButton from './ShareButton';
@@ -16,6 +17,7 @@ export default function PhotoGallery({
   title: string;
   images: Img[];
 }) {
+  const t = useTranslations('Gallery');
   const [open, setOpen] = useState<number | null>(null);
   const [visible, setVisible] = useState(false);
   const visibleImages = images.slice(0, 5);
@@ -63,7 +65,7 @@ export default function PhotoGallery({
               key={img.id}
               type="button"
               onClick={() => setOpen(i)}
-              aria-label={`${title} fotoğrafı ${i + 1}, büyütmek için tıklayın`}
+              aria-label={t('openPhoto', { title, number: i + 1 })}
               className={`group relative cursor-pointer overflow-hidden rounded-xl bg-sand-deep ring-1 ring-black/10 transition-transform active:scale-[0.96] ${
                 i === 0 ? 'col-span-2 row-span-2 aspect-square sm:aspect-auto' : 'aspect-square'
               }`}
@@ -79,7 +81,7 @@ export default function PhotoGallery({
               <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
               {isLast && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/45 text-[0.95rem] text-white">
-                  +{extra} fotoğraf
+                  {t('morePhotos', { count: extra })}
                 </div>
               )}
             </button>
@@ -95,7 +97,7 @@ export default function PhotoGallery({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`${title} fotoğrafları`}
+          aria-label={t('dialog', { title })}
           className={`fixed inset-0 z-[60] flex items-center justify-center bg-ink/95 p-4 transition-opacity duration-200 ease-out ${
             visible ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
@@ -109,7 +111,7 @@ export default function PhotoGallery({
             <button
               type="button"
               onClick={close}
-              aria-label="Kapat"
+              aria-label={t('close')}
               autoFocus
               className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-0 sm:-top-2"
             >
@@ -122,7 +124,7 @@ export default function PhotoGallery({
                 e.stopPropagation();
                 prev();
               }}
-              aria-label="Önceki fotoğraf"
+              aria-label={t('previous')}
               className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:-left-6"
             >
               ‹
@@ -138,7 +140,7 @@ export default function PhotoGallery({
                 e.stopPropagation();
                 next();
               }}
-              aria-label="Sonraki fotoğraf"
+              aria-label={t('next')}
               className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:-right-6"
             >
               ›

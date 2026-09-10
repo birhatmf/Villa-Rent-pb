@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/site/LocaleLink';
 
 export function SectionHeading({
   eyebrow,

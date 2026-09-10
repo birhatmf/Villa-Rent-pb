@@ -5,7 +5,8 @@
  */
 
 export type Field =
-  | { key: string; label: string; type: 'text' | 'textarea' | 'image'; placeholder?: string; hint?: string }
+  | { key: string; label: string; type: 'text' | 'textarea'; placeholder?: string; hint?: string; localized?: boolean }
+  | { key: string; label: string; type: 'image'; placeholder?: string; hint?: string }
   | { key: string; label: string; type: 'number'; min?: number; max?: number; hint?: string }
   | { key: string; label: string; type: 'boolean'; hint?: string }
   | { key: string; label: string; type: 'select'; options: { value: string; label: string }[] }
@@ -23,7 +24,7 @@ export type BlockSchema = {
 
 const linkFields = (): Field[] => [
   { key: 'label', label: 'Buton yazısı', type: 'text' },
-  { key: 'href', label: 'Bağlantı', type: 'text', placeholder: '/villalar' },
+  { key: 'href', label: 'Bağlantı', type: 'text', placeholder: '/villalar', localized: false },
 ];
 
 export const BLOCK_SCHEMAS: Record<string, BlockSchema> = {
@@ -75,7 +76,7 @@ export const BLOCK_SCHEMAS: Record<string, BlockSchema> = {
         type: 'list',
         itemLabel: 'Rakam',
         fields: [
-          { key: 'value', label: 'Değer', type: 'text', placeholder: '480+' },
+          { key: 'value', label: 'Değer', type: 'text', placeholder: '480+', localized: false },
           { key: 'label', label: 'Etiket', type: 'text' },
         ],
         defaultItem: { value: '', label: '' },
@@ -122,7 +123,7 @@ export const BLOCK_SCHEMAS: Record<string, BlockSchema> = {
         hint: 'Villaları ve sıralarını Öne çıkanlar ekranından yönetin.',
       },
       { key: 'ctaLabel', label: 'Bağlantı yazısı', type: 'text' },
-      { key: 'ctaHref', label: 'Bağlantı', type: 'text', placeholder: '/villalar' },
+      { key: 'ctaHref', label: 'Bağlantı', type: 'text', placeholder: '/villalar', localized: false },
     ],
     defaults: {
       eyebrow: 'Seçkiler',
@@ -143,7 +144,7 @@ export const BLOCK_SCHEMAS: Record<string, BlockSchema> = {
       { key: 'body', label: 'Metin', type: 'textarea' },
       { key: 'image', label: 'Görsel', type: 'image' },
       { key: 'ctaLabel', label: 'Bağlantı yazısı', type: 'text' },
-      { key: 'ctaHref', label: 'Bağlantı', type: 'text' },
+      { key: 'ctaHref', label: 'Bağlantı', type: 'text', localized: false },
     ],
     defaults: { eyebrow: '', title: 'Başlık', body: '', image: '', ctaLabel: '', ctaHref: '' },
   },

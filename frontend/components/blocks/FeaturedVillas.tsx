@@ -1,8 +1,10 @@
 import VillaCard from '@/components/site/VillaCard';
+import { useTranslations } from 'next-intl';
 import type { VillaCardData } from '@/lib/types';
 import { SectionHeading, Shell } from './shared';
 
 export default function FeaturedVillas({ content }: { content: Record<string, any> }) {
+  const t = useTranslations('Footer');
   const villas: VillaCardData[] = content.villas ?? [];
   if (!villas.length) return null;
 
@@ -13,7 +15,7 @@ export default function FeaturedVillas({ content }: { content: Record<string, an
         title={content.title}
         description={content.description}
         action={
-          content.ctaHref ? { label: content.ctaLabel ?? 'Tümü', href: content.ctaHref } : undefined
+          content.ctaHref ? { label: content.ctaLabel ?? t('all'), href: content.ctaHref } : undefined
         }
       />
 

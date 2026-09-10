@@ -1,17 +1,25 @@
 import Image from 'next/image';
-import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
+import Link from '@/components/site/LocaleLink';
 import VillaCard from '@/components/site/VillaCard';
 import type { Concept, Region, VillaListResponse } from '@/lib/types';
+import { translateDefaultText } from '@/lib/localization';
 
-export default function TaxonomyDetail({ kind, item, listing }: {
+export default async function TaxonomyDetail({ kind, item, listing }: {
   kind: 'region' | 'concept';
   item: Region | Concept;
   listing: VillaListResponse;
 }) {
+  const locale = await getLocale();
+  const [t, common] = await Promise.all([
+    getTranslations({ locale, namespace: 'Taxonomy' }),
+    getTranslations({ locale, namespace: 'Common' }),
+  ]);
   const isRegion = kind === 'region';
   const base = isRegion ? 'bolgeler' : 'konseptler';
   const filter = isRegion ? `bolge=${encodeURIComponent(item.slug)}` : `konsept=${encodeURIComponent(item.slug)}`;
   const description = 'description' in item ? item.description : null;
+  const itemName = translateDefaultText(item.name, locale);
 
   return (
     <div className="pb-24">
@@ -19,17 +27,17 @@ export default function TaxonomyDetail({ kind, item, listing }: {
         <Image src={item.image} alt="" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30" />
         <div className="relative mx-auto flex min-h-[26rem] max-w-7xl flex-col justify-between px-6 pb-12 pt-8 lg:min-h-[34rem] lg:px-10 lg:pb-16">
-          <nav aria-label="İçerik yolu" className="flex items-center gap-3 text-xs text-white/70">
-            <Link href="/" className="hover:text-white">Ana sayfa</Link>
+          <nav aria-label={t('breadcrumb')} className="flex items-center gap-3 text-xs text-white/70">
+            <Link href="/" className="hover:text-white">{common('home')}</Link>
             <span aria-hidden="true">/</span>
-            <Link href={`/${base}`} className="hover:text-white">{isRegion ? 'Bölgeler' : 'Konseptler'}</Link>
+            <Link href={`/${base}`} className="hover:text-white">{isRegion ? t('regions') : t('concepts')}</Link>
             <span aria-hidden="true">/</span>
-            <span aria-current="page">{item.name}</span>
+            <span aria-current="page">{itemName}</span>
           </nav>
           <div className="max-w-4xl">
-            <p className="eyebrow text-white/65">{isRegion ? 'Villa bölgesi' : 'Villa konsepti'} · {item.villaCount} villa</p>
-            <h1 className="mt-4 font-display text-[clamp(3.5rem,9vw,7.5rem)] font-light leading-[0.92] tracking-tight">{item.name}</h1>
-            {item.subtitle && <p className="mt-5 font-display text-2xl font-light text-white/85 lg:text-3xl">{item.subtitle}</p>}
+            <p className="eyebrow text-white/65">{isRegion ? t('regionType') : t('conceptType')} · {item.villaCount} {common('villa')}</p>
+            <h1 className="mt-4 font-display text-[clamp(3.5rem,9vw,7.5rem)] font-light leading-[0.92] tracking-tight">{itemName}</h1>
+            {item.subtitle && <p className="mt-5 font-display text-2xl font-light text-white/85 lg:text-3xl">{translateDefaultText(item.subtitle, locale)}</p>}
           </div>
         </div>
       </header>
@@ -37,11 +45,11 @@ export default function TaxonomyDetail({ kind, item, listing }: {
       <main className="mx-auto max-w-7xl px-6 pt-16 lg:px-10 lg:pt-24">
         <div className="mb-12 flex flex-col gap-6 border-b border-line pb-10 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <p className="eyebrow text-olive">Seçili villalar</p>
-            <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3.4rem)] font-light leading-tight">{item.name} için ayırdığımız evler</h2>
-            {description && <p className="mt-5 text-base leading-8 text-muted">{description}</p>}
+            <p className="eyebrow text-olive">{t('selected')}</p>
+            <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3.4rem)] font-light leading-tight">{t('homes', { name: itemName })}</h2>
+            {description && <p className="mt-5 text-base leading-8 text-muted">{translateDefaultText(description, locale)}</p>}
           </div>
-          <Link href={`/villalar?${filter}`} className="inline-flex min-h-12 shrink-0 items-center self-start rounded-lg border border-line px-5 py-3 text-sm transition-colors hover:border-olive hover:text-olive lg:self-auto">Tarih ve misafir seçin <span aria-hidden="true" className="ml-3">→</span></Link>
+          <Link href={`/villalar?${filter}`} className="inline-flex min-h-12 shrink-0 items-center self-start rounded-lg border border-line px-5 py-3 text-sm transition-colors hover:border-olive hover:text-olive lg:self-auto">{t('choose')} <span aria-hidden="true" className="ml-3">→</span></Link>
         </div>
 
         {listing.items.length ? (
@@ -50,9 +58,9 @@ export default function TaxonomyDetail({ kind, item, listing }: {
           </div>
         ) : (
           <div className="rounded-2xl bg-sand/50 px-6 py-20 text-center">
-            <h2 className="font-display text-3xl font-light">Bu seçkide henüz yayınlanmış villa yok.</h2>
-            <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted">Yeni evler hazırlanırken diğer bölgeleri ve konseptleri keşfedebilirsiniz.</p>
-            <Link href="/villalar" className="mt-7 inline-block rounded-full bg-ink px-6 py-3.5 text-sm text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">Tüm villaları gör</Link>
+            <h2 className="font-display text-3xl font-light">{t('empty')}</h2>
+            <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted">{t('emptyHelp')}</p>
+            <Link href="/villalar" className="mt-7 inline-block rounded-full bg-ink px-6 py-3.5 text-sm text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">{t('allVillas')}</Link>
           </div>
         )}
       </main>

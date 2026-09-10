@@ -15,7 +15,8 @@ import {
   type AdminSection,
 } from '@/lib/adminApi';
 import { BLOCK_SCHEMAS, DYNAMIC_TYPES, blockLabel } from '@/lib/blockSchema';
-import { FieldInput } from './Fields';
+import { localizeContent, setContentTranslation } from '@/lib/localization';
+import { BilingualFieldInput } from './Fields';
 
 type Editable = Pick<AdminSection, 'id' | 'type' | 'visible' | 'content'>;
 
@@ -36,8 +37,10 @@ export default function PageEditor({ slug }: { slug: string }) {
   const [editingDetails, setEditingDetails] = useState(false);
   const [detailsDirty, setDetailsDirty] = useState(false);
   const [details, setDetails] = useState({ title: '', seoTitle: '', seoDescription: '' });
+  const [previewLocale, setPreviewLocale] = useState<'tr' | 'en'>('tr');
 
   const selected = sections.find((s) => s.id === selectedId) ?? null;
+  const selectedEnglish = selected ? localizeContent(selected.content, 'en') : null;
   const hasChanges = dirty.size > 0 || orderDirty || detailsDirty;
 
   // ---- yükleme -------------------------------------------------------------
@@ -205,6 +208,19 @@ export default function PageEditor({ slug }: { slug: string }) {
 
         <div className="flex items-center gap-3">
           {error && <span className="text-[0.8rem] text-red-700">{error}</span>}
+          <span className="text-[0.72rem] text-muted">Önizleme</span>
+          <div className="flex rounded-full border border-line p-0.5 text-[0.75rem]">
+            {(['tr', 'en'] as const).map((locale) => (
+              <button
+                key={locale}
+                type="button"
+                onClick={() => setPreviewLocale(locale)}
+                className={`rounded-full px-3 py-1.5 uppercase ${previewLocale === locale ? 'bg-ink text-canvas' : 'text-muted'}`}
+              >
+                {locale}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => setEditingDetails((value) => !value)}
@@ -231,7 +247,7 @@ export default function PageEditor({ slug }: { slug: string }) {
 
       <div className="flex min-h-0 flex-1">
         {/* sol panel */}
-        <aside className="flex w-[380px] shrink-0 flex-col border-r border-line bg-canvas">
+        <aside className="flex w-[440px] shrink-0 flex-col border-r border-line bg-canvas">
           {editingDetails ? (
             <PageDetails
               slug={page.slug}
@@ -242,11 +258,14 @@ export default function PageEditor({ slug }: { slug: string }) {
                 setDetailsDirty(true);
               }}
             />
-          ) : selected ? (
+          ) : selected && selectedEnglish ? (
             <BlockForm
               section={selected}
+              translatedContent={selectedEnglish}
               onBack={() => setSelectedId(null)}
-              onChange={(content) => patch(selected.id, { content })}
+              onChange={(content, translatedContent) => patch(selected.id, {
+                content: setContentTranslation(content, 'en', translatedContent),
+              })}
             />
           ) : (
             <BlockList
@@ -283,7 +302,7 @@ export default function PageEditor({ slug }: { slug: string }) {
                   onClick={() => setSelectedId(s.id)}
                   className={`group/blk relative cursor-pointer ${s.visible ? '' : 'opacity-35 grayscale'}`}
                 >
-                  <Block content={{ ...s.content, ...(dynamic[s.id] ?? {}) }} />
+                  <Block content={{ ...localizeContent(s.content, previewLocale), ...(dynamic[s.id] ?? {}) }} />
 
                   <span
                     className={`pointer-events-none absolute inset-0 border-2 transition-colors ${
@@ -471,12 +490,14 @@ function BlockList({
 
 function BlockForm({
   section,
+  translatedContent,
   onBack,
   onChange,
 }: {
   section: Editable;
+  translatedContent: Record<string, any>;
   onBack: () => void;
-  onChange: (content: Record<string, any>) => void;
+  onChange: (content: Record<string, any>, translatedContent: Record<string, any>) => void;
 }) {
   const schema = BLOCK_SCHEMAS[section.type];
 
@@ -492,18 +513,22 @@ function BlockForm({
         </button>
         <div className="min-w-0">
           <p className="truncate text-[0.92rem] text-ink">{schema?.label ?? section.type}</p>
-          <p className="truncate text-[0.75rem] text-muted">{schema?.description}</p>
+          <p className="truncate text-[0.75rem] text-muted">Türkçe ve İngilizce birlikte düzenlenir</p>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
         {schema ? (
           schema.fields.map((f) => (
-            <FieldInput
+            <BilingualFieldInput
               key={f.key}
               field={f}
               value={section.content?.[f.key]}
-              onChange={(v) => onChange({ ...section.content, [f.key]: v })}
+              translatedValue={translatedContent?.[f.key]}
+              onChange={(value, translatedValue) => onChange(
+                { ...section.content, [f.key]: value },
+                { ...translatedContent, [f.key]: translatedValue },
+              )}
             />
           ))
         ) : (

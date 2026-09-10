@@ -1,10 +1,13 @@
-/** Rezervasyon akışının üç adımı — hem detay hem ödeme sayfasında aynı çubuk. */
-const STEPS = ['Tarih', 'Detaylar', 'Ödeme'] as const;
+'use client';
+
+import { useTranslations } from 'next-intl';
 
 export default function ReservationSteps({ current }: { current: 1 | 2 | 3 }) {
+  const t = useTranslations('Booking');
+  const steps = [t('date'), t('details'), t('payment')];
   return (
     <ol className="flex items-center gap-3 text-[0.8rem]">
-      {STEPS.map((label, index) => {
+      {steps.map((label, index) => {
         const step = index + 1;
         const done = step < current;
         const active = step === current;
@@ -18,7 +21,7 @@ export default function ReservationSteps({ current }: { current: 1 | 2 | 3 }) {
               {done ? '✓' : step}
             </span>
             <span className={active ? 'text-ink' : 'text-muted'}>{label}</span>
-            {step < STEPS.length && <span className="h-px w-6 bg-line" aria-hidden />}
+            {step < steps.length && <span className="h-px w-6 bg-line" aria-hidden />}
           </li>
         );
       })}

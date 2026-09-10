@@ -12,7 +12,7 @@ export const SOCIAL_PLATFORMS = [
 
 const linkListFields: Field[] = [
   { key: 'label', label: 'Yazı', type: 'text' },
-  { key: 'href', label: 'Bağlantı', type: 'text', placeholder: '/villalar' },
+  { key: 'href', label: 'Bağlantı', type: 'text', placeholder: '/villalar', localized: false },
 ];
 
 /** Footer & iletişim ayarları — Setting tablosunda key: "footer". */
@@ -60,14 +60,15 @@ export const FOOTER_FIELDS: Field[] = [
     fields: [
       { key: 'title', label: 'Başlık', type: 'text' },
       { key: 'address', label: 'Adres', type: 'textarea' },
-      { key: 'phone', label: 'Telefon', type: 'text', placeholder: '0212 000 00 00' },
-      { key: 'email', label: 'E‑posta', type: 'text' },
+      { key: 'phone', label: 'Telefon', type: 'text', placeholder: '0212 000 00 00', localized: false },
+      { key: 'email', label: 'E‑posta', type: 'text', localized: false },
       {
         key: 'mapUrl',
         label: 'Harita bağlantısı',
         type: 'text',
         placeholder: 'https://maps.google.com/?q=…',
         hint: 'Google Maps’te konumu açıp adres çubuğundaki bağlantıyı yapıştırın.',
+        localized: false,
       },
       { key: 'mapLabel', label: 'Harita bağlantı yazısı', type: 'text' },
     ],
@@ -79,7 +80,7 @@ export const FOOTER_FIELDS: Field[] = [
     itemLabel: 'Hesap',
     fields: [
       { key: 'platform', label: 'Platform', type: 'select', options: SOCIAL_PLATFORMS },
-      { key: 'url', label: 'Profil adresi', type: 'text', placeholder: 'https://instagram.com/…' },
+      { key: 'url', label: 'Profil adresi', type: 'text', placeholder: 'https://instagram.com/…', localized: false },
     ],
     defaultItem: { platform: 'instagram', url: '' },
   },
@@ -95,6 +96,7 @@ export const FOOTER_FIELDS: Field[] = [
         type: 'text',
         placeholder: '905000000000',
         hint: 'Ülke kodu ile, boşluksuz ve + işaretsiz.',
+        localized: false,
       },
       { key: 'message', label: 'Hazır mesaj', type: 'textarea' },
       { key: 'label', label: 'Butonun yanındaki yazı', type: 'text' },

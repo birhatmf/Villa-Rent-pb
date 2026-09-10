@@ -1,24 +1,29 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import NextLink from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { logout } from '@/lib/authApi';
 import type { Branding } from '@/lib/branding';
+import { CURRENCIES, type DisplayCurrency } from '@/lib/currency';
 import { readSession, type SessionUser } from '@/lib/session';
 import BrandMark from './BrandMark';
+import { useCurrency } from './CurrencyProvider';
 
 const NAV = [
-  { label: 'Villalar', href: '/villalar' },
-  { label: 'Bölgeler', href: '/bolgeler' },
-  { label: 'Konseptler', href: '/konseptler' },
-  { label: 'Hakkımızda', href: '/hakkimizda' },
-  { label: 'İletişim', href: '/iletisim' },
-];
+  { label: 'villas', href: '/villalar' },
+  { label: 'regions', href: '/bolgeler' },
+  { label: 'concepts', href: '/konseptler' },
+  { label: 'about', href: '/hakkimizda' },
+  { label: 'contact', href: '/iletisim' },
+] as const;
 
 export default function Header({ branding }: { branding: Branding }) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useTranslations('Header');
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<SessionUser | null>(null);
@@ -81,7 +86,7 @@ export default function Header({ branding }: { branding: Branding }) {
                 light ? 'text-white/85 hover:text-white' : 'text-ink-soft hover:text-ink'
               }`}
             >
-              {item.label}
+              {t(item.label)}
               <span
                 className={`absolute -bottom-1.5 left-0 h-px w-0 transition-[width] duration-300 group-hover:w-full ${
                   light ? 'bg-white' : 'bg-gold'
@@ -102,7 +107,7 @@ export default function Header({ branding }: { branding: Branding }) {
                   light ? 'text-white/85 hover:text-white' : 'text-ink-soft hover:text-ink'
                 }`}
               >
-                Giriş
+                {t('login')}
               </Link>
               <Link
                 href="/kayit"
@@ -112,15 +117,17 @@ export default function Header({ branding }: { branding: Branding }) {
                     : 'border-ink/20 text-ink hover:border-ink hover:bg-ink hover:text-canvas'
                 }`}
               >
-                Üye ol
+                {t('register')}
               </Link>
             </>
           )}
 
+          <LocaleCurrencyControls light={light} />
+
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            aria-label={open ? 'Menüyü kapat' : 'Menüyü aç'}
+            aria-label={open ? t('closeMenu') : t('openMenu')}
             aria-expanded={open}
             className={`flex h-10 w-10 flex-col items-center justify-center gap-[5px] lg:hidden ${
               light ? 'text-white' : 'text-ink'
@@ -149,7 +156,7 @@ export default function Header({ branding }: { branding: Branding }) {
               onClick={() => setOpen(false)}
               className="border-b border-line/70 py-4 font-display text-2xl text-ink"
             >
-              {item.label}
+              {t(item.label)}
             </Link>
           ))}
 
@@ -157,9 +164,9 @@ export default function Header({ branding }: { branding: Branding }) {
             <>
               {session.role === 'GUEST' && (
                 <>
-                  <MobileMenuLink href="/hesabim" close={() => setOpen(false)}>Hesabım</MobileMenuLink>
-                  <MobileMenuLink href="/hesabim/seyahatlerim" close={() => setOpen(false)}>Seyahatlerim</MobileMenuLink>
-                  <MobileMenuLink href="/hesabim/yorumlarim" close={() => setOpen(false)}>Yorumlarım</MobileMenuLink>
+                  <MobileMenuLink href="/hesabim" close={() => setOpen(false)}>{t('account')}</MobileMenuLink>
+                  <MobileMenuLink href="/hesabim/seyahatlerim" close={() => setOpen(false)}>{t('trips')}</MobileMenuLink>
+                  <MobileMenuLink href="/hesabim/yorumlarim" close={() => setOpen(false)}>{t('reviews')}</MobileMenuLink>
                 </>
               )}
               <Link
@@ -167,31 +174,31 @@ export default function Header({ branding }: { branding: Branding }) {
                 onClick={() => setOpen(false)}
                 className="border-b border-line/70 py-4 font-display text-2xl text-ink"
               >
-                Profil ve güvenlik
+                {t('profile')}
               </Link>
               {session.role === 'HOST' && (
-                <Link
+                <NextLink
                   href="/hesabim/ev-sahibi/rezervasyonlar"
                   onClick={() => setOpen(false)}
                   className="border-b border-line/70 py-4 font-display text-2xl text-ink"
                 >
-                  Ev sahibi paneli
-                </Link>
+                  {t('hostPanel')}
+                </NextLink>
               )}
               {session.role === 'ADMIN' && (
-                <Link
+                <NextLink
                   href="/admin"
                   onClick={() => setOpen(false)}
                   className="border-b border-line/70 py-4 font-display text-2xl text-ink"
                 >
-                  Yönetim paneli
-                </Link>
+                  {t('adminPanel')}
+                </NextLink>
               )}
               <button
                 onClick={onLogout}
                 className="mt-5 rounded-full border border-ink/20 px-6 py-3.5 text-center text-sm text-ink"
               >
-                Çıkış yap
+                {t('logout')}
               </button>
             </>
           ) : (
@@ -201,17 +208,20 @@ export default function Header({ branding }: { branding: Branding }) {
                 onClick={() => setOpen(false)}
                 className="border-b border-line/70 py-4 font-display text-2xl text-ink"
               >
-                Giriş
+                {t('login')}
               </Link>
               <Link
                 href="/kayit"
                 onClick={() => setOpen(false)}
                 className="mt-5 rounded-full bg-ink px-6 py-3.5 text-center text-sm text-canvas"
               >
-                Üye ol
+                {t('register')}
               </Link>
             </>
           )}
+          <div className="mt-5">
+            <LocaleCurrencyControls mobile />
+          </div>
         </nav>
       )}
     </header>
@@ -228,6 +238,7 @@ function AccountMenu({
   onLogout: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useTranslations('Header');
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -272,22 +283,22 @@ function AccountMenu({
         <div className="absolute right-0 top-[calc(100%+0.6rem)] w-52 overflow-hidden rounded-xl border border-line bg-surface py-1.5 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.3)]">
           {session.role === 'GUEST' && (
             <>
-              <MenuLink href="/hesabim" onClick={() => setOpen(false)}>Hesabım</MenuLink>
-              <MenuLink href="/hesabim/seyahatlerim" onClick={() => setOpen(false)}>Seyahatlerim</MenuLink>
-              <MenuLink href="/hesabim/yorumlarim" onClick={() => setOpen(false)}>Yorumlarım</MenuLink>
+              <MenuLink href="/hesabim" onClick={() => setOpen(false)}>{t('account')}</MenuLink>
+              <MenuLink href="/hesabim/seyahatlerim" onClick={() => setOpen(false)}>{t('trips')}</MenuLink>
+              <MenuLink href="/hesabim/yorumlarim" onClick={() => setOpen(false)}>{t('reviews')}</MenuLink>
             </>
           )}
           <MenuLink href="/hesabim/profil" onClick={() => setOpen(false)}>
-            Profil ve güvenlik
+            {t('profile')}
           </MenuLink>
           {session.role === 'HOST' && (
-            <MenuLink href="/hesabim/ev-sahibi/rezervasyonlar" onClick={() => setOpen(false)}>
-              Ev sahibi paneli
+            <MenuLink href="/hesabim/ev-sahibi/rezervasyonlar" onClick={() => setOpen(false)} external>
+              {t('hostPanel')}
             </MenuLink>
           )}
           {session.role === 'ADMIN' && (
-            <MenuLink href="/admin" onClick={() => setOpen(false)}>
-              Yönetim paneli
+            <MenuLink href="/admin" onClick={() => setOpen(false)} external>
+              {t('adminPanel')}
             </MenuLink>
           )}
           <div className="my-1.5 h-px bg-line" />
@@ -295,7 +306,7 @@ function AccountMenu({
             onClick={onLogout}
             className="block w-full px-4 py-2.5 text-left text-[0.88rem] text-muted transition-colors hover:bg-sand hover:text-ink"
           >
-            Çıkış yap
+            {t('logout')}
           </button>
         </div>
       )}
@@ -311,18 +322,86 @@ function MenuLink({
   href,
   onClick,
   children,
+  external = false,
 }: {
   href: string;
   onClick: () => void;
   children: React.ReactNode;
+  external?: boolean;
 }) {
+  const Component = external ? NextLink : Link;
   return (
-    <Link
+    <Component
       href={href}
       onClick={onClick}
       className="block px-4 py-2.5 text-[0.88rem] text-ink-soft transition-colors hover:bg-sand hover:text-ink"
     >
       {children}
-    </Link>
+    </Component>
+  );
+}
+
+function LocaleCurrencyControls({ light = false, mobile = false }: { light?: boolean; mobile?: boolean }) {
+  const locale = useLocale();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const t = useTranslations('Header');
+  const { currency, setCurrency } = useCurrency();
+  const [shownLocale, setShownLocale] = useState(locale);
+  const [isPending, startTransition] = useTransition();
+  const color = mobile ? 'border-line bg-surface text-ink' : light
+    ? 'border-white/35 bg-black/10 text-white'
+    : 'border-ink/15 bg-surface text-ink';
+  const switchColor = mobile ? 'border-line bg-sand/70' : light
+    ? 'border-white/40 bg-black/20'
+    : 'border-ink/15 bg-sand/70';
+
+  useEffect(() => {
+    setShownLocale(locale);
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  function changeLocale(nextLocale: string) {
+    if (nextLocale === shownLocale) return;
+    setShownLocale(nextLocale);
+    document.cookie = `mv_locale=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    const query = searchParams.toString();
+    startTransition(() => {
+      router.replace(`${pathname}${query ? `?${query}` : ''}`, { locale: nextLocale });
+    });
+  }
+
+  return (
+    <div className={`flex items-center gap-1.5 ${mobile ? 'w-full' : 'hidden lg:flex'}`}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={shownLocale === 'en'}
+        aria-label={`${t('language')}: ${shownLocale === 'tr' ? 'Türkçe' : 'English'}`}
+        aria-busy={isPending}
+        title={shownLocale === 'tr' ? 'Switch to English' : 'Türkçeye geç'}
+        disabled={isPending}
+        onClick={() => changeLocale(shownLocale === 'tr' ? 'en' : 'tr')}
+        className={`relative grid h-9 w-[74px] shrink-0 grid-cols-2 items-center rounded-full border p-1 outline-none backdrop-blur-md transition-colors focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 disabled:cursor-wait ${switchColor}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute left-1 top-1 h-7 w-8 rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.22)] transition-transform duration-300 ease-out motion-reduce:transition-none ${shownLocale === 'en' ? 'translate-x-[32px]' : ''}`}
+        />
+        <span aria-hidden="true" className={`relative z-10 text-base transition-opacity ${shownLocale === 'tr' ? 'opacity-100' : 'opacity-45'}`}>🇹🇷</span>
+        <span aria-hidden="true" className={`relative z-10 text-base transition-opacity ${shownLocale === 'en' ? 'opacity-100' : 'opacity-45'}`}>🇬🇧</span>
+      </button>
+
+      <label className="sr-only" htmlFor={mobile ? 'mobile-currency' : 'desktop-currency'}>{t('currency')}</label>
+      <select
+        id={mobile ? 'mobile-currency' : 'desktop-currency'}
+        value={currency}
+        onChange={(event) => setCurrency(event.target.value as DisplayCurrency)}
+        className={`h-9 cursor-pointer rounded-full border px-2.5 text-[0.72rem] font-medium outline-none backdrop-blur-md ${color}`}
+      >
+        {CURRENCIES.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </div>
   );
 }

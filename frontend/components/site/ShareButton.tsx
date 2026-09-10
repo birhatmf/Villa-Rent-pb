@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * Cihazda yerel paylaşım sayfası varsa (çoğu mobil tarayıcı — Instagram dahil)
@@ -10,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
  * doğrudan paylaşım bağlantısı yok.
  */
 export default function ShareButton({ title, className = '' }: { title: string; className?: string }) {
+  const t = useTranslations('Gallery');
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -71,7 +73,7 @@ export default function ShareButton({ title, className = '' }: { title: string; 
       <button
         type="button"
         onClick={onClick}
-        aria-label="Paylaş"
+        aria-label={t('share')}
         className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas/90 text-ink backdrop-blur-sm transition-transform hover:scale-105"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden className="h-[1.05rem] w-[1.05rem]">
@@ -95,7 +97,7 @@ export default function ShareButton({ title, className = '' }: { title: string; 
             onClick={close}
             className="block rounded-md px-3.5 py-2.5 text-[0.85rem] text-ink hover:bg-sand"
           >
-            WhatsApp&apos;ta paylaş
+            {t('shareWhatsApp')}
           </a>
           <a
             href={facebookHref}
@@ -104,14 +106,14 @@ export default function ShareButton({ title, className = '' }: { title: string; 
             onClick={close}
             className="block rounded-md px-3.5 py-2.5 text-[0.85rem] text-ink hover:bg-sand"
           >
-            Facebook&apos;ta paylaş
+            {t('shareFacebook')}
           </a>
           <button
             type="button"
             onClick={copyLink}
             className="block w-full rounded-md px-3.5 py-2.5 text-left text-[0.85rem] text-ink hover:bg-sand"
           >
-            {copied ? 'Bağlantı kopyalandı' : 'Instagram için bağlantıyı kopyala'}
+            {copied ? t('copied') : t('copyInstagram')}
           </button>
         </div>
       )}

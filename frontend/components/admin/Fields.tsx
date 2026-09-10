@@ -179,6 +179,158 @@ export function FieldInput({
   }
 }
 
+/**
+ * Metin alanlarını iki dilde birlikte, yapısal alanları tek kez düzenler.
+ * Liste sırası, görseller, bağlantılar ve seçimler iki dilde daima aynı kalır.
+ */
+export function BilingualFieldInput({
+  field,
+  value,
+  translatedValue,
+  onChange,
+}: {
+  field: Field;
+  value: any;
+  translatedValue: any;
+  onChange: (next: any, translatedNext: any) => void;
+}) {
+  if ((field.type === 'text' || field.type === 'textarea') && field.localized !== false) {
+    return (
+      <div className="space-y-2 rounded-lg border border-line/70 bg-surface/50 p-3">
+        <FieldInput
+          field={{ ...field, label: `${field.label} · Türkçe` }}
+          value={value}
+          onChange={(next) => onChange(next, translatedValue)}
+        />
+        <FieldInput
+          field={{ ...field, label: `${field.label} · English` }}
+          value={translatedValue}
+          onChange={(next) => onChange(value, next)}
+        />
+      </div>
+    );
+  }
+
+  if (field.type === 'group') {
+    const base = objectValue(value);
+    const translated = objectValue(translatedValue);
+    return (
+      <fieldset className="rounded-lg border border-line/80 bg-sand/25 p-3">
+        <legend className="eyebrow px-1 text-muted">{field.label}</legend>
+        <div className="space-y-3">
+          {field.fields.map((child) => (
+            <BilingualFieldInput
+              key={child.key}
+              field={child}
+              value={base[child.key]}
+              translatedValue={translated[child.key]}
+              onChange={(next, translatedNext) =>
+                onChange(
+                  { ...base, [child.key]: next },
+                  { ...translated, [child.key]: translatedNext },
+                )
+              }
+            />
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (field.type === 'list') {
+    const items: any[] = Array.isArray(value) ? value : [];
+    const rawTranslated: any[] = Array.isArray(translatedValue) ? translatedValue : [];
+    const translatedItems = items.map((item, index) => ({
+      ...objectValue(item),
+      ...objectValue(rawTranslated[index]),
+    }));
+    const replace = (next: any[], translatedNext: any[]) => onChange(next, translatedNext);
+
+    return (
+      <div>
+        <div className="flex items-center justify-between">
+          <span className="eyebrow text-muted">{field.label}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const item = structuredClone(field.defaultItem);
+              replace([...items, item], [...translatedItems, structuredClone(item)]);
+            }}
+            className="text-[0.78rem] text-olive transition-colors hover:text-ink"
+          >
+            + {field.itemLabel} ekle
+          </button>
+        </div>
+
+        <div className="mt-2 space-y-3">
+          {items.map((item, index) => (
+            <div key={index} className="rounded-lg border border-line/80 bg-sand/25 p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-[0.75rem] text-muted">{field.itemLabel} {index + 1}</span>
+                <div className="flex items-center gap-1">
+                  <IconBtn
+                    label="Yukarı taşı"
+                    disabled={index === 0}
+                    onClick={() => replace(swap(items, index, index - 1), swap(translatedItems, index, index - 1))}
+                  >↑</IconBtn>
+                  <IconBtn
+                    label="Aşağı taşı"
+                    disabled={index === items.length - 1}
+                    onClick={() => replace(swap(items, index, index + 1), swap(translatedItems, index, index + 1))}
+                  >↓</IconBtn>
+                  <IconBtn
+                    label="Sil"
+                    onClick={() => replace(
+                      items.filter((_, itemIndex) => itemIndex !== index),
+                      translatedItems.filter((_, itemIndex) => itemIndex !== index),
+                    )}
+                  >×</IconBtn>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {field.fields.map((child) => {
+                  const baseItem = objectValue(item);
+                  const translatedItem = objectValue(translatedItems[index]);
+                  return (
+                    <BilingualFieldInput
+                      key={child.key}
+                      field={child}
+                      value={baseItem[child.key]}
+                      translatedValue={translatedItem[child.key]}
+                      onChange={(next, translatedNext) => replace(
+                        items.map((current, itemIndex) => itemIndex === index
+                          ? { ...objectValue(current), [child.key]: next }
+                          : current),
+                        translatedItems.map((current, itemIndex) => itemIndex === index
+                          ? { ...objectValue(current), [child.key]: translatedNext }
+                          : current),
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {!items.length && (
+            <p className="rounded-lg border border-dashed border-line py-4 text-center text-[0.82rem] text-muted">
+              Henüz {field.itemLabel.toLowerCase()} yok.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <FieldInput
+      field={field}
+      value={value}
+      onChange={(next) => onChange(next, next)}
+    />
+  );
+}
+
 function Label({ field, children }: { field: Field; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -221,3 +373,6 @@ const swap = <T,>(arr: T[], a: number, b: number) => {
   [next[a], next[b]] = [next[b], next[a]];
   return next;
 };
+
+const objectValue = (value: any): Record<string, any> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {};

@@ -1,6 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
+import { useTranslations } from 'next-intl';
 import { useEffect, useSyncExternalStore } from 'react';
 import { readSession } from '@/lib/session';
 import { getSnapshot, load, subscribe, toggle } from '@/lib/favoritesStore';
@@ -12,6 +13,7 @@ export default function FavoriteButton({
   villaId: string;
   className?: string;
 }) {
+  const t = useTranslations('Gallery');
   const router = useRouter();
   const active = useSyncExternalStore(
     subscribe,
@@ -37,7 +39,7 @@ export default function FavoriteButton({
     <button
       type="button"
       onClick={onClick}
-      aria-label={active ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+      aria-label={active ? t('removeFavorite') : t('addFavorite')}
       aria-pressed={active}
       className={`flex h-9 w-9 items-center justify-center rounded-full bg-canvas/90 backdrop-blur-sm transition-transform hover:scale-105 ${className}`}
     >

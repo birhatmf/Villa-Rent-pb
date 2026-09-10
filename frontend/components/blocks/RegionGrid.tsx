@@ -1,9 +1,11 @@
 import Image from 'next/image';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import Link from '@/components/site/LocaleLink';
 import type { Region } from '@/lib/types';
 import { SectionHeading, Shell } from './shared';
 
 export default function RegionGrid({ content }: { content: Record<string, any> }) {
+  const t = useTranslations('Common');
   const regions: Region[] = content.regions ?? [];
   if (!regions.length) return null;
 
@@ -14,7 +16,7 @@ export default function RegionGrid({ content }: { content: Record<string, any> }
       <SectionHeading
         eyebrow={content.eyebrow}
         title={content.title}
-        action={{ label: 'Tüm bölgeler', href: '/bolgeler' }}
+        action={{ label: t('allRegions'), href: '/bolgeler' }}
       />
 
       <div className="mt-14 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
@@ -38,6 +40,7 @@ function Card({
   featured?: boolean;
   delay?: number;
 }) {
+  const t = useTranslations('Common');
   return (
     <Link
       href={`/bolgeler/${region.slug}`}
@@ -54,7 +57,7 @@ function Card({
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
-        <p className="eyebrow text-white/60">{region.villaCount} villa</p>
+        <p className="eyebrow text-white/60">{t('villaCount', { count: region.villaCount })}</p>
         <h3
           className={`mt-2 font-display font-light leading-tight text-white ${
             featured ? 'text-[clamp(1.8rem,3vw,2.6rem)]' : 'text-xl md:text-2xl'

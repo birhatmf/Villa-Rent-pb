@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import Link from '@/components/site/LocaleLink';
 import type { Concept } from '@/lib/types';
 import { SectionHeading, Shell } from './shared';
 
@@ -23,6 +24,7 @@ export default function ConceptGrid({ content }: { content: Record<string, any> 
 }
 
 function Card({ concept, delay = 0 }: { concept: Concept; delay?: number }) {
+  const t = useTranslations('Common');
   return (
     <Link
       href={`/konseptler/${concept.slug}`}
@@ -39,7 +41,7 @@ function Card({ concept, delay = 0 }: { concept: Concept; delay?: number }) {
       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 p-5 md:p-6">
-        <p className="eyebrow text-white/60">{concept.villaCount} villa</p>
+        <p className="eyebrow text-white/60">{t('villaCount', { count: concept.villaCount })}</p>
         <h3 className="mt-2 font-display text-xl font-light leading-tight text-white md:text-2xl">
           {concept.name}
         </h3>

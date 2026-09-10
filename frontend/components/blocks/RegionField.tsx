@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function RegionField({
   regions,
@@ -9,6 +10,7 @@ export default function RegionField({
   regions: { id: string; slug: string; name: string }[];
   className?: string;
 }) {
+  const t = useTranslations('Search');
   const [open, setOpen] = useState(false);
   const [slug, setSlug] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -39,9 +41,9 @@ export default function RegionField({
         onClick={() => setOpen((v) => !v)}
         className={`flex w-full flex-col gap-1.5 bg-surface px-6 py-4 text-left transition-colors hover:bg-sand/40 ${className}`}
       >
-        <span className="eyebrow text-muted">Nereye</span>
+        <span className="eyebrow text-muted">{t('where')}</span>
         <span className={`truncate text-[0.95rem] ${selected ? 'text-ink' : 'text-muted'}`}>
-          {selected ? selected.name : 'Bölge seçin'}
+          {selected ? selected.name : t('selectRegion')}
         </span>
       </button>
 
@@ -71,7 +73,7 @@ export default function RegionField({
               );
             })
           ) : (
-            <p className="px-3 py-4 text-sm text-muted">Bölge bulunamadı</p>
+            <p className="px-3 py-4 text-sm text-muted">{t('noRegion')}</p>
           )}
         </div>
       )}

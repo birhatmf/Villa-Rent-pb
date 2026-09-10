@@ -1,7 +1,28 @@
 import type { Concept, Page, Region, VillaListResponse } from './types';
 import type { VillaDetail } from './villaApi';
+import { EMPTY_RATES, type ExchangeRates } from './currency';
 
 const API = process.env.API_URL ?? 'http://localhost:4000/api';
+
+async function fetchJson<T>(url: string, label: string): Promise<{ response: Response; data?: T }> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) return { response };
+
+    const text = await response.text();
+    if (text.trim()) {
+      try {
+        return { response, data: JSON.parse(text) as T };
+      } catch {
+        if (attempt === 1) throw new Error(`${label}: sunucu geçersiz JSON döndürdü.`);
+      }
+    } else if (attempt === 1) {
+      throw new Error(`${label}: sunucu boş yanıt döndürdü.`);
+    }
+  }
+
+  throw new Error(`${label}: yanıt okunamadı.`);
+}
 
 export type VillaPublicDetail = Omit<
   VillaDetail,
@@ -13,10 +34,13 @@ export type VillaPublicDetail = Omit<
 export async function getPageBySlug(slug: string): Promise<Page | null> {
   // ponytail: no-store — admin inline editör gelene kadar tasarım iterasyonu için.
   // Yayına çıkarken revalidate + admin kaydında on-demand revalidate'e çevrilecek.
-  const res = await fetch(`${API}/pages/${encodeURIComponent(slug)}`, { cache: 'no-store' });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Sayfa yüklenemedi (${slug}): ${res.status}`);
-  return res.json();
+  const { response, data } = await fetchJson<Page>(
+    `${API}/pages/${encodeURIComponent(slug)}`,
+    `Sayfa yüklenemedi (${slug})`,
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Sayfa yüklenemedi (${slug}): ${response.status}`);
+  return data!;
 }
 
 export async function getPage(slug: string): Promise<Page> {
@@ -132,10 +156,14 @@ export async function getVillaFilterOptions() {
 }
 
 async function getTaxonomy<T>(path: 'regions' | 'concepts', slug?: string): Promise<T | null> {
-  const res = await fetch(`${API}/${path}${slug ? `/${encodeURIComponent(slug)}` : ''}`, { cache: 'no-store' });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`${path === 'regions' ? 'Bölgeler' : 'Konseptler'} yüklenemedi: ${res.status}`);
-  return res.json();
+  const label = path === 'regions' ? 'Bölgeler' : 'Konseptler';
+  const { response, data } = await fetchJson<T>(
+    `${API}/${path}${slug ? `/${encodeURIComponent(slug)}` : ''}`,
+    `${label} yüklenemedi`,
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`${label} yüklenemedi: ${response.status}`);
+  return data!;
 }
 
 export const listRegions = () => getTaxonomy<Region[]>('regions') as Promise<Region[]>;
@@ -151,6 +179,16 @@ export async function getSetting(key: string): Promise<Record<string, any>> {
     return await res.json();
   } catch {
     return {};
+  }
+}
+
+export async function getExchangeRates(): Promise<ExchangeRates> {
+  try {
+    const res = await fetch(`${API}/exchange-rates`, { cache: 'no-store' });
+    if (!res.ok) return EMPTY_RATES;
+    return await res.json();
+  } catch {
+    return EMPTY_RATES;
   }
 }
 

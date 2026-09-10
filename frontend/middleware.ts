@@ -1,64 +1,90 @@
+import createMiddleware from 'next-intl/middleware';
 import { NextResponse, type NextRequest } from 'next/server';
+import { routing, type AppLocale } from '@/i18n/routing';
 import { decodeSession, TOKEN_COOKIE, USER_COOKIE } from '@/lib/session';
 
+const handleI18n = createMiddleware(routing);
+
+function routeInfo(pathname: string): { locale: AppLocale; pathname: string } {
+  const segment = pathname.split('/')[1];
+  const locale = routing.locales.includes(segment as AppLocale)
+    ? (segment as AppLocale)
+    : routing.defaultLocale;
+  if (segment !== locale) return { locale, pathname };
+  const stripped = pathname.slice(segment.length + 1) || '/';
+  return { locale, pathname: stripped.startsWith('/') ? stripped : `/${stripped}` };
+}
+
+function localized(locale: AppLocale, pathname: string) {
+  if (locale === routing.defaultLocale) return pathname;
+  return `/${locale}${pathname === '/' ? '' : pathname}`;
+}
+
+function isOwnerTool(pathname: string) {
+  return pathname.startsWith('/hesabim/ev-sahibi') || pathname.startsWith('/hesabim/villalarim');
+}
+
 /**
- * Yalnızca yönlendirme içindir. `mv_user` çerezi kullanıcı tarafından
- * düzenlenebilir — asıl yetki her zaman backend'de RolesGuard ile verilir.
- * Rolü kurcalayan biri en fazla boş bir admin kabuğu görür, her API çağrısı 403 döner.
+ * Yetki yönlendirmeleri backend güvenliğinin yerine geçmez. Burada yalnızca
+ * kullanıcıyı doğru ekrana taşır, ardından public sayfalara locale uygularız.
  */
 export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
+  const rawPathname = req.nextUrl.pathname;
+  const { locale, pathname } = routeInfo(rawPathname);
+  const { search } = req.nextUrl;
   const hasToken = req.cookies.has(TOKEN_COOKIE);
   const session = decodeSession(req.cookies.get(USER_COOKIE)?.value);
+  const redirect = (to: string, localize = true) =>
+    NextResponse.redirect(new URL(localize ? localized(locale, to) : to, req.url));
 
-  const redirect = (to: string) => NextResponse.redirect(new URL(to, req.url));
-
-  // Girişliyken giriş/kayıt ekranlarında oyalanma.
   if (pathname === '/giris' || pathname === '/kayit') {
-    if (!hasToken) return NextResponse.next();
-    if (session?.role === 'ADMIN') return redirect('/admin');
-    if (session?.role === 'HOST') return redirect('/hesabim/ev-sahibi');
-    return redirect('/hesabim');
+    if (hasToken) {
+      if (session?.role === 'ADMIN') return redirect('/admin', false);
+      if (session?.role === 'HOST') return redirect('/hesabim/ev-sahibi', false);
+      return redirect('/hesabim');
+    }
   }
 
   if (pathname === '/admin/login') {
     if (!hasToken) return NextResponse.next();
-    return redirect(session?.role === 'ADMIN' ? '/admin' : '/');
+    return redirect(session?.role === 'ADMIN' ? '/admin' : '/', session?.role !== 'ADMIN');
   }
 
   if (pathname === '/hesabim' || pathname.startsWith('/hesabim/')) {
     if (!hasToken) {
-      const url = new URL('/giris', req.url);
+      const url = new URL(localized(locale, '/giris'), req.url);
       url.searchParams.set('next', pathname + search);
       return NextResponse.redirect(url);
     }
-    const ownerRoute = pathname.startsWith('/hesabim/villalarim') || pathname.startsWith('/hesabim/ev-sahibi');
-    if (ownerRoute && session?.role !== 'HOST') {
-      return redirect(session?.role === 'ADMIN' ? '/admin' : '/hesabim');
+
+    if (isOwnerTool(pathname) && session?.role !== 'HOST') {
+      return redirect(session?.role === 'ADMIN' ? '/admin' : '/hesabim', session?.role !== 'ADMIN');
     }
 
-    const customerRoute = pathname === '/hesabim' || pathname.startsWith('/hesabim/seyahatlerim') || pathname.startsWith('/hesabim/yorumlarim');
-    if (customerRoute && session?.role === 'HOST') return redirect('/hesabim/ev-sahibi');
-    if (customerRoute && session?.role === 'ADMIN') return redirect('/admin');
-
-    return NextResponse.next();
+    const customerRoute = pathname === '/hesabim'
+      || pathname.startsWith('/hesabim/seyahatlerim')
+      || pathname.startsWith('/hesabim/yorumlarim');
+    if (customerRoute && session?.role === 'HOST') return redirect('/hesabim/ev-sahibi', false);
+    if (customerRoute && session?.role === 'ADMIN') return redirect('/admin', false);
   }
 
-  if (pathname === '/ev-sahibi' && session?.role === 'HOST') return redirect('/hesabim/ev-sahibi');
-  if (pathname === '/ev-sahibi' && session?.role === 'ADMIN') return redirect('/admin');
+  if (pathname === '/ev-sahibi' && session?.role === 'HOST') return redirect('/hesabim/ev-sahibi', false);
+  if (pathname === '/ev-sahibi' && session?.role === 'ADMIN') return redirect('/admin', false);
 
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     if (!hasToken) {
       const url = new URL('/admin/login', req.url);
-      url.searchParams.set('next', pathname + search);
+      url.searchParams.set('next', rawPathname + search);
       return NextResponse.redirect(url);
     }
-    // Girişli ama yönetici değil: admin login'e yollamak kafa karıştırır.
-    if (session && session.role !== 'ADMIN') return redirect('/');
+    if (session && session.role !== 'ADMIN') return redirect('/', false);
     return NextResponse.next();
   }
 
-  return NextResponse.next();
+  if (isOwnerTool(pathname)) return NextResponse.next();
+  return handleI18n(req);
 }
 
-export const config = { matcher: ['/admin/:path*', '/hesabim/:path*', '/giris', '/kayit', '/ev-sahibi'] };
+export const config = {
+  matcher: ['/((?!api|_next|uploads|.*\\..*).*)'],
+};

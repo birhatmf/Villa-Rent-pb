@@ -7,7 +7,8 @@ import WhatsAppButton from '@/components/site/WhatsAppButton';
 import { getSetting, saveSetting } from '@/lib/adminApi';
 import { FOOTER_DEFAULTS, FOOTER_FIELDS } from '@/lib/footerSchema';
 import { BRANDING_DEFAULTS, normalizeBranding, type Branding } from '@/lib/branding';
-import { FieldInput } from './Fields';
+import { localizeContent, setContentTranslation } from '@/lib/localization';
+import { BilingualFieldInput } from './Fields';
 
 export default function FooterEditor() {
   const [draft, setDraft] = useState<Record<string, any> | null>(null);
@@ -16,6 +17,7 @@ export default function FooterEditor() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [branding, setBranding] = useState<Branding>(BRANDING_DEFAULTS);
+  const [previewLocale, setPreviewLocale] = useState<'tr' | 'en'>('tr');
 
   useEffect(() => {
     Promise.all([getSetting('footer'), getSetting('branding')])
@@ -69,12 +71,20 @@ export default function FooterEditor() {
     return <div className="flex h-full items-center justify-center text-[0.9rem] text-muted">Yükleniyor…</div>;
   }
 
-  const set = (key: string, value: any) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+  const englishDraft = localizeContent(draft, 'en');
+  const visibleDraft = localizeContent(draft, previewLocale);
+  const set = (key: string, value: any, translatedValue: any) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return setContentTranslation({ ...prev, [key]: value }, 'en', {
+        ...localizeContent(prev, 'en'),
+        [key]: translatedValue,
+      });
+    });
     setDirty(true);
   };
 
-  const wa = draft.whatsapp ?? {};
+  const wa = visibleDraft.whatsapp ?? {};
 
   return (
     <div className="flex h-full flex-col">
@@ -99,6 +109,14 @@ export default function FooterEditor() {
 
         <div className="flex items-center gap-3">
           {error && <span className="text-[0.8rem] text-red-700">{error}</span>}
+          <span className="text-[0.72rem] text-muted">Önizleme</span>
+          <div className="flex rounded-full border border-line p-0.5 text-[0.75rem]">
+            {(['tr', 'en'] as const).map((locale) => (
+              <button key={locale} type="button" onClick={() => setPreviewLocale(locale)} className={`rounded-full px-3 py-1.5 uppercase ${previewLocale === locale ? 'bg-ink text-canvas' : 'text-muted'}`}>
+                {locale}
+              </button>
+            ))}
+          </div>
           <Link
             href="/"
             target="_blank"
@@ -117,9 +135,15 @@ export default function FooterEditor() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-[380px] shrink-0 space-y-6 overflow-y-auto border-r border-line bg-canvas px-4 py-5">
+        <aside className="w-[440px] shrink-0 space-y-6 overflow-y-auto border-r border-line bg-canvas px-4 py-5">
           {FOOTER_FIELDS.map((f) => (
-            <FieldInput key={f.key} field={f} value={draft[f.key]} onChange={(v) => set(f.key, v)} />
+            <BilingualFieldInput
+              key={f.key}
+              field={f}
+              value={draft[f.key]}
+              translatedValue={englishDraft[f.key]}
+              onChange={(value, translatedValue) => set(f.key, value, translatedValue)}
+            />
           ))}
         </aside>
 
@@ -131,7 +155,7 @@ export default function FooterEditor() {
             }}
             onSubmitCapture={(e) => e.preventDefault()}
           >
-            <Footer content={draft} branding={branding} />
+            <Footer content={visibleDraft} branding={branding} />
           </div>
 
           {/* Yüzen buton öngösterimi: panelin kendi alt kenarına yapışsın diye sticky. */}

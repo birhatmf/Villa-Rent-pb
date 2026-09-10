@@ -1,14 +1,21 @@
+'use client';
+
 import Image from 'next/image';
-import Link from 'next/link';
-import { formatPrice } from '@/lib/api';
+import { useLocale, useTranslations } from 'next-intl';
+import Link from '@/components/site/LocaleLink';
 import FavoriteButton from '@/components/site/FavoriteButton';
 import type { VillaCardData } from '@/lib/types';
+import { useCurrency } from './CurrencyProvider';
+import { translateDefaultText } from '@/lib/localization';
 
 /**
  * Tek villa kartı — hem ana sayfa `featuredVillas` bloğu hem `/villalar`
  * listelemesi bunu kullanır. İki ayrı kart tasarımı sürüklememek için paylaşıldı.
  */
 export default function VillaCard({ villa, delay = 0 }: { villa: VillaCardData; delay?: number }) {
+  const { formatPrice } = useCurrency();
+  const locale = useLocale();
+  const t = useTranslations('Common');
   const { min, max } = villa.priceRange;
 
   return (
@@ -54,16 +61,16 @@ export default function VillaCard({ villa, delay = 0 }: { villa: VillaCardData; 
         </h3>
         {villa.summary && (
           <p className="mt-2 line-clamp-2 text-[0.93rem] leading-relaxed text-muted">
-            {villa.summary}
+            {translateDefaultText(villa.summary, locale)}
           </p>
         )}
 
         <div className="mt-5 flex items-center gap-4 text-[0.83rem] text-muted">
-          <span>{villa.capacity} kişi</span>
+          <span>{villa.capacity} {t('person')}</span>
           <Dot />
-          <span>{villa.bedrooms} oda</span>
+          <span>{villa.bedrooms} {t('room')}</span>
           <Dot />
-          <span>{villa.bathrooms} banyo</span>
+          <span>{villa.bathrooms} {t('bathroom')}</span>
         </div>
 
         <div className="mt-4 flex items-baseline gap-1.5 border-t border-line pt-4">
@@ -72,7 +79,7 @@ export default function VillaCard({ villa, delay = 0 }: { villa: VillaCardData; 
               ? formatPrice(min, villa.currency)
               : `${formatPrice(min, villa.currency)} – ${formatPrice(max, villa.currency)}`}
           </span>
-          <span className="text-[0.83rem] text-muted">/ gece</span>
+          <span className="text-[0.83rem] text-muted">/ {t('night')}</span>
         </div>
       </div>
       </Link>

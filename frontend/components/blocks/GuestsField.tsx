@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function GuestsField({ className = '', defaultAdults = 2, defaultChildren = 0, defaultInfants = 0 }: {
   className?: string;
@@ -8,6 +9,7 @@ export default function GuestsField({ className = '', defaultAdults = 2, default
   defaultChildren?: number;
   defaultInfants?: number;
 }) {
+  const t = useTranslations('Search');
   const [open, setOpen] = useState(false);
   const [adults, setAdults] = useState(defaultAdults);
   const [children, setChildren] = useState(defaultChildren);
@@ -31,9 +33,9 @@ export default function GuestsField({ className = '', defaultAdults = 2, default
   }, [open]);
 
   const summary = [
-    `${adults} yetişkin`,
-    children > 0 ? `${children} çocuk` : '',
-    infants > 0 ? `${infants} bebek` : '',
+    t('adultCount', { count: adults }),
+    children > 0 ? t('childCount', { count: children }) : '',
+    infants > 0 ? t('infantCount', { count: infants }) : '',
   ].filter(Boolean).join(', ');
 
   return (
@@ -44,7 +46,7 @@ export default function GuestsField({ className = '', defaultAdults = 2, default
         onClick={() => setOpen((v) => !v)}
         className="flex w-full flex-col gap-1.5 bg-surface px-6 py-4 text-left transition-colors hover:bg-sand/40"
       >
-        <span className="eyebrow text-muted">Misafir</span>
+        <span className="eyebrow text-muted">{t('guest')}</span>
         <span className="truncate text-[0.95rem] text-ink">{summary}</span>
       </button>
 
@@ -54,11 +56,11 @@ export default function GuestsField({ className = '', defaultAdults = 2, default
 
       {open && (
         <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(90vw,18rem)] rounded-2xl border border-line bg-canvas p-5 text-ink shadow-[0_24px_60px_-16px_rgba(0,0,0,0.35)]">
-          <Counter label="Yetişkin" hint="13 yaş ve üzeri" value={adults} min={1} max={20} onChange={setAdults} />
+          <Counter label={t('adult')} hint={t('adultHint')} value={adults} min={1} max={20} onChange={setAdults} />
           <div className="my-4 h-px bg-line" />
-          <Counter label="Çocuk" hint="0–12 yaş" value={children} min={0} max={12} onChange={setChildren} />
+          <Counter label={t('child')} hint={t('childHint')} value={children} min={0} max={12} onChange={setChildren} />
           <div className="my-4 h-px bg-line" />
-          <Counter label="Bebek" hint="0–2 yaş" value={infants} min={0} max={10} onChange={setInfants} />
+          <Counter label={t('infant')} hint={t('infantHint')} value={infants} min={0} max={10} onChange={setInfants} />
         </div>
       )}
     </div>
@@ -80,6 +82,7 @@ function Counter({
   max: number;
   onChange: (v: number) => void;
 }) {
+  const t = useTranslations('Search');
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
@@ -89,7 +92,7 @@ function Counter({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          aria-label={`${label} azalt`}
+          aria-label={t('decrease', { label })}
           disabled={value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
           className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-ink disabled:pointer-events-none disabled:opacity-30"
@@ -99,7 +102,7 @@ function Counter({
         <span className="w-4 text-center text-[0.92rem] tabular-nums text-ink">{value}</span>
         <button
           type="button"
-          aria-label={`${label} artır`}
+          aria-label={t('increase', { label })}
           disabled={value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
           className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-ink transition-colors hover:border-ink disabled:pointer-events-none disabled:opacity-30"

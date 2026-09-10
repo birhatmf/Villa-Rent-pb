@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import DateRangeField from './DateRangeField';
 import GuestsField from './GuestsField';
@@ -9,6 +10,7 @@ import RegionField from './RegionField';
 type Slide = { image: string; caption?: string };
 
 export default function Hero({ content }: { content: Record<string, any> }) {
+  const t = useTranslations('Common');
   const slides: Slide[] = content.slides ?? [];
   const [active, setActive] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -80,7 +82,7 @@ export default function Hero({ content }: { content: Record<string, any> }) {
                 <button
                   key={s.image}
                   type="button"
-                  aria-label={`${i + 1}. görsel`}
+                  aria-label={t('slide', { number: i + 1 })}
                   onClick={() => setActive(i)}
                   className={`h-px transition-[width,background-color] duration-500 ${
                     i === active ? 'w-14 bg-white' : 'w-7 bg-white/40 hover:bg-white/70'
@@ -103,10 +105,12 @@ function SearchBar({
 }: {
   search?: { cta?: string; regions?: { id: string; slug: string; name: string }[] };
 }) {
+  const locale = useLocale();
+  const t = useTranslations('Search');
   const regions = search?.regions ?? [];
   return (
     <form
-      action="/villalar"
+      action={`${locale === 'tr' ? '' : `/${locale}`}/villalar`}
       className="mt-12 grid gap-px overflow-visible rounded-2xl bg-line/60 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)] sm:grid-cols-2 lg:grid-cols-[1.4fr_1.6fr_0.9fr_auto]"
     >
       <RegionField
@@ -119,7 +123,7 @@ function SearchBar({
         type="submit"
         className="bg-ink px-8 py-5 text-[0.95rem] text-canvas transition-colors hover:bg-olive sm:col-span-2 sm:rounded-b-2xl lg:col-span-1 lg:rounded-b-none lg:rounded-r-2xl lg:px-10"
       >
-        {search?.cta ?? 'Villa ara'}
+        {locale === 'tr' ? search?.cta ?? t('search') : t('search')}
       </button>
     </form>
   );

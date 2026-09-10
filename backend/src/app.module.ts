@@ -31,6 +31,8 @@ import { RegionsController } from './pages/regions.controller';
 import { PagesService } from './pages/pages.service';
 import { AdminSettingsController, SettingsController } from './settings/settings.controller';
 import { SettingsService } from './settings/settings.service';
+import { ExchangeRatesController } from './settings/exchange-rates.controller';
+import { ExchangeRatesService } from './settings/exchange-rates.service';
 import { AdminConceptsController } from './taxonomy/concepts.controller';
 import { AdminRegionsController } from './taxonomy/regions.controller';
 import { TaxonomyService } from './taxonomy/taxonomy.service';
@@ -66,6 +68,7 @@ import { ReviewsService } from './reviews/reviews.service';
     UsersController,
     SettingsController,
     AdminSettingsController,
+    ExchangeRatesController,
     HostApplicationsController,
     AdminHostApplicationsController,
     HostOnboardingController,
@@ -98,6 +101,7 @@ import { ReviewsService } from './reviews/reviews.service';
     AdminMediaService,
     UsersService,
     SettingsService,
+    ExchangeRatesService,
     HostApplicationsService,
     VillasService,
     VillaImagesService,

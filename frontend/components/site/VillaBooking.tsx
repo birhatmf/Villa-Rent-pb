@@ -1,8 +1,10 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/site/LocaleLink';
+import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
-import { formatPrice, type AvailabilityResult } from '@/lib/api';
+import type { AvailabilityResult } from '@/lib/api';
+import { CurrencyNotice, useCurrency } from './CurrencyProvider';
 import { Section } from './detailShared';
 
 type Range = { startDate: string; endDate: string };
@@ -27,25 +29,9 @@ export type VillaBookingVilla = {
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 const DAY = 86_400_000;
-const WEEKDAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-const REASON: Record<string, string> = {
-  SALES_PAUSED: 'Bu villa şu anda rezervasyona kapalı.',
-  DATES_UNAVAILABLE: 'Seçilen aralıkta dolu geceler var.',
-  MIN_STAY: 'Seçilen tarihler minimum konaklama süresini karşılamıyor.',
-  CHECKIN_DAY: 'Bu tarihte giriş yapılamıyor.',
-  CAPACITY_EXCEEDED: 'Misafir sayısı villa kapasitesini aşıyor.',
-  SYNC_UNHEALTHY: 'Dış takvim henüz güncel doğrulanamadı. Rezervasyon talebi bırakabilirsiniz.',
-};
-
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 const parse = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const addMonths = (date: Date, count: number) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + count, 1));
-const dayLabel = (value: string) =>
-  new Date(`${value}T00:00:00Z`).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-
-/** Takvim hücresine sığması için kısaltılmış gösterim: 18.500 → "18,5B". */
-const compact = new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 });
-
 function overlaps(from: string, to: string, ranges: Range[]) {
   return ranges.some((range) => from < range.endDate.slice(0, 10) && to > range.startDate.slice(0, 10));
 }
@@ -57,6 +43,21 @@ export default function VillaBooking({
   villa: VillaBookingVilla;
   children: React.ReactNode;
 }) {
+  const { currency, formatPrice } = useCurrency();
+  const locale = useLocale();
+  const t = useTranslations('Booking');
+  const dayLabel = (value: string) => new Date(`${value}T00:00:00Z`).toLocaleDateString(
+    locale === 'tr' ? 'tr-TR' : 'en-GB',
+    { day: 'numeric', month: 'short', timeZone: 'UTC' },
+  );
+  const reason: Record<string, string> = {
+    SALES_PAUSED: t('reasonSalesPaused'),
+    DATES_UNAVAILABLE: t('reasonDatesUnavailable'),
+    MIN_STAY: t('reasonMinStay'),
+    CHECKIN_DAY: t('reasonCheckinDay'),
+    CAPACITY_EXCEEDED: t('reasonCapacity'),
+    SYNC_UNHEALTHY: t('reasonSync'),
+  };
   const now = new Date();
   const today = iso(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
   const [month, setMonth] = useState(() => new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)));
@@ -88,14 +89,14 @@ export default function VillaBooking({
     setError(null);
     fetch(`${API}/villas/${encodeURIComponent(villa.slug)}/availability?${params}`, { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error('Müsaitlik kontrol edilemedi.');
+        if (!response.ok) throw new Error(t('availabilityError'));
         return response.json() as Promise<AvailabilityResult>;
       })
       .then(setResult)
       .catch((cause) => { if (cause.name !== 'AbortError') setError(cause.message); })
       .finally(() => { if (!controller.signal.aborted) setChecking(false); });
     return () => controller.abort();
-  }, [from, to, guests, villa.slug]);
+  }, [from, to, guests, villa.slug, t]);
 
   function choose(date: string) {
     if (date < today) return;
@@ -134,27 +135,27 @@ export default function VillaBooking({
     <>
       <div className="grid gap-16 lg:grid-cols-[1fr_360px]">
         <div className="space-y-14">
-          <Section title="Fiyat ve Müsaitlik">
+          <Section title={t('priceAvailability')}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <p className="text-[0.82rem] text-muted">
-                Giriş ve çıkış gününü seçin. Rakamlar o gecenin fiyatıdır ({villa.currency}).
+                {t('calendarHelp', { currency })}
               </p>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setMonth(addMonths(month, -1))} aria-label="Önceki ay" className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">‹</button>
-                <button type="button" onClick={() => setMonth(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)))} className="rounded-md px-2 py-1 text-[0.76rem] text-muted transition-colors hover:text-ink">Bugün</button>
-                <button type="button" onClick={() => setMonth(addMonths(month, 1))} aria-label="Sonraki ay" className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">›</button>
+                <button type="button" onClick={() => setMonth(addMonths(month, -1))} aria-label={t('previousMonth')} className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">‹</button>
+                <button type="button" onClick={() => setMonth(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)))} className="rounded-md px-2 py-1 text-[0.76rem] text-muted transition-colors hover:text-ink">{t('today')}</button>
+                <button type="button" onClick={() => setMonth(addMonths(month, 1))} aria-label={t('nextMonth')} className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-muted hover:border-ink hover:text-ink">›</button>
               </div>
             </div>
 
             <div className="grid gap-10 sm:grid-cols-2">
-              <Month month={month} ranges={villa.blockedDates} today={today} from={from} to={to} priceFor={priceFor} onChoose={choose} />
-              <Month month={addMonths(month, 1)} ranges={villa.blockedDates} today={today} from={from} to={to} priceFor={priceFor} onChoose={choose} />
+              <Month month={month} ranges={villa.blockedDates} today={today} from={from} to={to} priceFor={priceFor} sourceCurrency={villa.currency} onChoose={choose} />
+              <Month month={addMonths(month, 1)} ranges={villa.blockedDates} today={today} from={from} to={to} priceFor={priceFor} sourceCurrency={villa.currency} onChoose={choose} />
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.76rem] text-muted">
-              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-sand-deep" /> Dolu</span>
-              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-olive" /> Seçili geceler</span>
-              <span>Çıkış günü başka bir misafirin giriş günü olabilir.</span>
+              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-sand-deep" /> {t('unavailable')}</span>
+              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-olive" /> {t('selectedNights')}</span>
+              <span>{t('checkoutHint')}</span>
             </div>
           </Section>
 
@@ -163,7 +164,7 @@ export default function VillaBooking({
 
         <aside className="h-fit space-y-5 rounded-2xl border border-line bg-surface p-6 lg:sticky lg:top-28">
           <div>
-            <p className="eyebrow text-muted">{quote ? `${result?.nights} gece toplam` : 'Gecelik fiyat'}</p>
+            <p className="eyebrow text-muted">{quote ? t('nightTotal', { count: result?.nights ?? 0 }) : t('nightlyPrice')}</p>
             <p className="mt-1.5 font-display text-[1.7rem] leading-tight text-ink tabular-nums">
               {quote
                 ? formatPrice(quote.totalAmount, quote.currency)
@@ -172,63 +173,63 @@ export default function VillaBooking({
                   : `${formatPrice(villa.priceRange.min, villa.currency)} – ${formatPrice(villa.priceRange.max, villa.currency)}`}
             </p>
             <p className="text-[0.8rem] text-muted">
-              {quote ? 'Seçilen tarihler için' : 'Sezona göre değişir'}
+              {quote ? t('selectedDates') : t('seasonal')}
             </p>
           </div>
 
           <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-line">
-            <DateCell label="Giriş" value={from} />
-            <DateCell label="Çıkış" value={to} className="border-l border-line" />
+            <DateCell label={t('checkIn')} value={from} dayLabel={dayLabel} />
+            <DateCell label={t('checkOut')} value={to} dayLabel={dayLabel} className="border-l border-line" />
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <GuestInput label="Yetişkin" value={guests.adults} max={villa.maxAdults} min={1} onChange={(adults) => setGuests({ ...guests, adults })} />
-            <GuestInput label="Çocuk" value={guests.children} max={villa.maxChildren} onChange={(children) => setGuests({ ...guests, children })} />
-            <GuestInput label="Bebek" value={guests.infants} max={villa.maxInfants} onChange={(infants) => setGuests({ ...guests, infants })} />
+            <GuestInput label={t('adult')} value={guests.adults} max={villa.maxAdults} min={1} onChange={(adults) => setGuests({ ...guests, adults })} />
+            <GuestInput label={t('child')} value={guests.children} max={villa.maxChildren} onChange={(children) => setGuests({ ...guests, children })} />
+            <GuestInput label={t('infant')} value={guests.infants} max={villa.maxInfants} onChange={(infants) => setGuests({ ...guests, infants })} />
           </div>
 
           {quote && (
-            <dl className="space-y-2 border-t border-line pt-4 text-[0.85rem]">
-              <Line label={`${result?.nights} gece konaklama`} value={formatPrice(quote.accommodationAmount, quote.currency)} />
-              {quote.cleaningFeeAmount > 0 && (
-                <Line label="Temizlik ücreti" value={formatPrice(quote.cleaningFeeAmount, quote.currency)} />
-              )}
-              <Line label="Toplam" value={formatPrice(quote.totalAmount, quote.currency)} strong />
-              {quote.prepaymentAmount > 0 && (
-                <Line label="Şimdi ödenecek kapora" value={formatPrice(quote.prepaymentAmount, quote.currency)} />
-              )}
-            </dl>
+            <>
+              <dl className="space-y-2 border-t border-line pt-4 text-[0.85rem]">
+                <Line label={t('stay', { count: result?.nights ?? 0 })} value={formatPrice(quote.accommodationAmount, quote.currency)} />
+                {quote.cleaningFeeAmount > 0 && (
+                  <Line label={t('cleaningFee')} value={formatPrice(quote.cleaningFeeAmount, quote.currency)} />
+                )}
+                <Line label={t('total')} value={formatPrice(quote.totalAmount, quote.currency)} strong />
+                {quote.prepaymentAmount > 0 && (
+                  <Line label={t('depositNow')} value={formatPrice(quote.prepaymentAmount, quote.currency)} />
+                )}
+              </dl>
+              <CurrencyNotice sourceCurrency={quote.currency} className="text-[0.72rem] leading-relaxed text-muted" />
+            </>
           )}
 
-          {checking && <p className="text-[0.8rem] text-muted">Tarihler kontrol ediliyor…</p>}
+          {checking && <p className="text-[0.8rem] text-muted">{t('checking')}</p>}
           {error && <p role="alert" className="text-[0.8rem] text-red-700">{error}</p>}
           {result && !checking && !result.available && (
             <p className={`text-[0.82rem] ${syncOnly ? 'text-muted' : 'text-red-700'}`}>
-              {result.reasons.map((reason) => REASON[reason] ?? reason).join(' ')}
+              {result.reasons.map((code) => reason[code] ?? code).join(' ')}
             </p>
           )}
 
           {bookable ? (
             <Link href={reserveHref} className="block rounded-full bg-ink py-3 text-center text-[0.9rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">
-              Rezervasyona devam et
+              {t('continue')}
             </Link>
           ) : requestable ? (
             <Link href={requestHref} className="block rounded-full border border-ink py-3 text-center text-[0.9rem] text-ink transition-[background-color,transform] hover:bg-ink hover:text-canvas active:scale-[0.96]">
-              Rezervasyon talebi gönder
+              {t('sendRequest')}
             </Link>
           ) : (
             <button type="button" disabled className="w-full cursor-not-allowed rounded-full bg-ink/25 py-3 text-[0.9rem] text-canvas">
-              {from && !to ? 'Çıkış tarihini seçin' : 'Tarih seçin'}
+              {from && !to ? t('selectCheckout') : t('selectDates')}
             </button>
           )}
 
           <div className="border-t border-line pt-4 text-[0.82rem] leading-relaxed text-muted">
-            <p>Minimum konaklama: {villa.minNights} gece</p>
-            <p className="mt-1">Hasar depozitosu: {formatPrice(villa.depositAmount, villa.currency)} (girişte alınır)</p>
-            <p className="mt-1">
-              Temizlik ücreti ({formatPrice(villa.cleaningFee, villa.currency)}) yalnızca {villa.cleaningFeeThresholdNights} geceden kısa
-              konaklamalarda uygulanır.
-            </p>
+            <p>{t('minimumStay', { count: villa.minNights })}</p>
+            <p className="mt-1">{t('damageDeposit', { amount: formatPrice(villa.depositAmount, villa.currency) })}</p>
+            <p className="mt-1">{t('cleaningRule', { amount: formatPrice(villa.cleaningFee, villa.currency), count: villa.cleaningFeeThresholdNights })}</p>
           </div>
         </aside>
       </div>
@@ -243,14 +244,14 @@ export default function VillaBooking({
                 ? formatPrice(villa.priceRange.min, villa.currency)
                 : `${formatPrice(villa.priceRange.min, villa.currency)}+`}
           </p>
-          <p className="text-[0.76rem] text-muted">{quote ? `${result?.nights} gece toplam` : '/ gece'}</p>
+          <p className="text-[0.76rem] text-muted">{quote ? t('nightTotal', { count: result?.nights ?? 0 }) : t('perNight')}</p>
         </div>
         {bookable ? (
-          <Link href={reserveHref} className="shrink-0 rounded-full bg-ink px-6 py-3 text-[0.88rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">Devam et</Link>
+          <Link href={reserveHref} className="shrink-0 rounded-full bg-ink px-6 py-3 text-[0.88rem] text-canvas transition-[background-color,transform] hover:bg-olive active:scale-[0.96]">{t('shortContinue')}</Link>
         ) : requestable ? (
-          <Link href={requestHref} className="shrink-0 rounded-full border border-ink px-6 py-3 text-[0.88rem] text-ink transition-[background-color,transform] hover:bg-ink hover:text-canvas active:scale-[0.96]">Talep gönder</Link>
+          <Link href={requestHref} className="shrink-0 rounded-full border border-ink px-6 py-3 text-[0.88rem] text-ink transition-[background-color,transform] hover:bg-ink hover:text-canvas active:scale-[0.96]">{t('shortRequest')}</Link>
         ) : (
-          <span className="shrink-0 rounded-full bg-ink/25 px-6 py-3 text-[0.88rem] text-canvas">Tarih seçin</span>
+          <span className="shrink-0 rounded-full bg-ink/25 px-6 py-3 text-[0.88rem] text-canvas">{t('selectDates')}</span>
         )}
       </div>
     </>
@@ -264,6 +265,7 @@ function Month({
   from,
   to,
   priceFor,
+  sourceCurrency,
   onChoose,
 }: {
   month: Date;
@@ -272,8 +274,17 @@ function Month({
   from: string;
   to: string;
   priceFor: (date: string) => number;
+  sourceCurrency: string;
   onChoose: (date: string) => void;
 }) {
+  const locale = useLocale();
+  const t = useTranslations('Booking');
+  const { formatCompactPrice } = useCurrency();
+  const localeCode = locale === 'tr' ? 'tr-TR' : 'en-GB';
+  const weekdays = Array.from({ length: 7 }, (_, index) =>
+    new Intl.DateTimeFormat(localeCode, { weekday: 'short', timeZone: 'UTC' })
+      .format(new Date(Date.UTC(2024, 0, index + 1))),
+  );
   const first = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1));
   const leading = (first.getUTCDay() + 6) % 7;
   const count = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
@@ -284,10 +295,10 @@ function Month({
   return (
     <div>
       <p className="text-center font-display text-lg font-light capitalize text-ink">
-        {first.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
+        {first.toLocaleDateString(localeCode, { month: 'long', year: 'numeric', timeZone: 'UTC' })}
       </p>
       <div className="mt-4 grid grid-cols-7 gap-1 text-center">
-        {WEEKDAYS.map((weekday) => <span key={weekday} className="pb-1 text-[0.68rem] text-muted">{weekday}</span>)}
+        {weekdays.map((weekday) => <span key={weekday} className="pb-1 text-[0.68rem] text-muted">{weekday}</span>)}
         {cells.map((day, index) => {
           if (!day) return <span key={`blank-${index}`} />;
           const date = iso(day);
@@ -303,7 +314,7 @@ function Month({
               key={date}
               disabled={disabled}
               onClick={() => onChoose(date)}
-              aria-label={`${date}${blocked ? ', dolu' : `, gecelik ${priceFor(date)}`}${endpoint ? ', seçili' : ''}`}
+              aria-label={`${date}, ${blocked ? t('bookedAria') : t('nightPriceAria', { price: formatCompactPrice(priceFor(date), sourceCurrency) })}${endpoint ? `, ${t('selectedAria')}` : ''}`}
               className={`flex h-[3.4rem] flex-col items-center justify-center gap-0.5 rounded-md py-1 text-[0.8rem] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold disabled:cursor-not-allowed ${
                 endpoint
                   ? 'bg-ink text-white ring-2 ring-ink'
@@ -319,7 +330,7 @@ function Month({
               <span>{day.getUTCDate()}</span>
               {!past && !blocked && (
                 <span className={`text-[0.6rem] ${endpoint || selectedNight ? 'text-white/75' : 'text-muted'}`}>
-                  {compact.format(priceFor(date))}
+                  {formatCompactPrice(priceFor(date), sourceCurrency)}
                 </span>
               )}
             </button>
@@ -330,7 +341,7 @@ function Month({
   );
 }
 
-function DateCell({ label, value, className = '' }: { label: string; value: string; className?: string }) {
+function DateCell({ label, value, dayLabel, className = '' }: { label: string; value: string; dayLabel: (value: string) => string; className?: string }) {
   return (
     <div className={`px-3.5 py-2.5 ${className}`}>
       <p className="eyebrow text-muted">{label}</p>
