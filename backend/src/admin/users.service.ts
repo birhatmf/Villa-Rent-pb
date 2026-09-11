@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { securityEvent } from '../security/security-event';
 
 /** passwordHash hiçbir yanıtta dönmesin diye tek yerden seçiyoruz. */
 const SAFE = {
@@ -10,6 +11,7 @@ const SAFE = {
   phone: true,
   role: true,
   active: true,
+  isPrimaryAdmin: true,
   marketingOptIn: true,
   kvkkAcceptedAt: true,
   lastLoginAt: true,
@@ -23,6 +25,12 @@ export type ListParams = {
   page?: number;
   pageSize?: number;
 };
+
+export function assertPrimaryAdminMutable(isPrimaryAdmin: boolean, data: { role?: Role; active?: boolean }) {
+  if (isPrimaryAdmin && (data.role !== undefined || data.active !== undefined)) {
+    throw new BadRequestException('Ana yönetici hesabı değiştirilemez.');
+  }
+}
 
 @Injectable()
 export class UsersService {
@@ -75,8 +83,9 @@ export class UsersService {
       if (!locked.length) throw new NotFoundException('Üye bulunamadı.');
       const target = await tx.user.findUniqueOrThrow({
         where: { id },
-        select: { role: true, active: true, _count: { select: { villas: true } } },
+        select: { role: true, active: true, isPrimaryAdmin: true, _count: { select: { villas: true } } },
       });
+      assertPrimaryAdminMutable(target.isPrimaryAdmin, data);
 
       // Kilitlenme koruması: yönetici kendi yetkisini düşüremez / kendini engelleyemez.
       if (id === actorId) {
@@ -109,7 +118,14 @@ export class UsersService {
           throw new BadRequestException('Son aktif yönetici hesabının yetkisi kaldırılamaz.');
         }
       }
-      return tx.user.update({ where: { id }, data: { ...data, sessionVersion: { increment: 1 } }, select: SAFE });
+      const updated = await tx.user.update({ where: { id }, data: { ...data, sessionVersion: { increment: 1 } }, select: SAFE });
+      securityEvent('admin_user_changed', {
+        actorId,
+        targetId: id,
+        roleChanged: data.role !== undefined,
+        activeChanged: data.active !== undefined,
+      });
+      return updated;
     });
   }
 
@@ -120,8 +136,9 @@ export class UsersService {
       if (!locked.length) throw new NotFoundException('Üye bulunamadı.');
       const target = await tx.user.findUniqueOrThrow({
         where: { id },
-        select: { role: true, active: true, _count: { select: { villas: true, bookings: true, reviews: true } } },
+        select: { role: true, active: true, isPrimaryAdmin: true, _count: { select: { villas: true, bookings: true, reviews: true } } },
       });
+      if (target.isPrimaryAdmin) throw new BadRequestException('Ana yönetici hesabı silinemez.');
       if (target._count.villas || target._count.bookings || target._count.reviews) {
         throw new BadRequestException('Operasyon kaydı olan hesap silinemez; hesabı pasifleştirin.');
       }
@@ -132,6 +149,7 @@ export class UsersService {
         }
       }
       await tx.user.delete({ where: { id } });
+      securityEvent('admin_user_deleted', { actorId, targetId: id, targetRole: target.role });
       return { ok: true };
     });
   }

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { IsBoolean, IsInt, IsOptional, IsString, IsUrl, Length, MaxLength, Min } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { JwtGuard } from '../auth/jwt.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
@@ -39,6 +40,7 @@ export class AdminIcalController {
   }
 
   @Post('preview')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   preview(@Param('villaId') villaId: string, @Body() dto: IcalPreviewDto) {
     return this.ical.preview(villaId, dto.url);
   }
@@ -49,6 +51,7 @@ export class AdminIcalController {
   }
 
   @Post(':sourceId/sync')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   sync(@Param('villaId') villaId: string, @Param('sourceId') sourceId: string) {
     return this.ical.syncScoped(villaId, sourceId);
   }
@@ -91,6 +94,7 @@ export class HostIcalController {
   }
 
   @Post('preview')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   preview(@Param('villaId') villaId: string, @Body() dto: IcalPreviewDto, @Req() req: AuthRequest) {
     return this.ical.preview(villaId, dto.url, req.user.sub);
   }
@@ -101,6 +105,7 @@ export class HostIcalController {
   }
 
   @Post(':sourceId/sync')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   sync(@Param('villaId') villaId: string, @Param('sourceId') sourceId: string, @Req() req: AuthRequest) {
     return this.ical.syncScoped(villaId, sourceId, req.user.sub);
   }
@@ -136,6 +141,7 @@ export class PublicIcalController {
   constructor(private ical: IcalService) {}
 
   @Get(':token.ics')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   async export(
     @Param('token') token: string,
     @Headers('if-none-match') ifNoneMatch: string | undefined,

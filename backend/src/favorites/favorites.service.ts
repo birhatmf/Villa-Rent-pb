@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -7,13 +7,18 @@ export class FavoritesService {
 
   async list(userId: string) {
     const rows = await this.prisma.favorite.findMany({
-      where: { userId },
+      where: { userId, villa: { status: 'PUBLISHED', salesStatus: 'OPEN' } },
       orderBy: { createdAt: 'desc' },
       include: {
         villa: {
-          include: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            currency: true,
+            pricePerNight: true,
             region: { select: { name: true, slug: true } },
-            images: { where: { isCover: true }, take: 1 },
+            images: { where: { isCover: true }, take: 1, select: { url: true } },
             priceRules: { select: { pricePerNight: true } },
           },
         },
@@ -28,6 +33,12 @@ export class FavoritesService {
   }
 
   async add(userId: string, villaId: string) {
+    const villa = await this.prisma.villa.findFirst({
+      where: { id: villaId, status: 'PUBLISHED', salesStatus: 'OPEN' },
+      select: { id: true },
+    });
+    if (!villa) throw new NotFoundException('Villa bulunamadı.');
+
     // upsert: aynı villayı iki kez favoriye eklemek hataya değil no-op'a düşer.
     await this.prisma.favorite.upsert({
       where: { userId_villaId: { userId, villaId } },

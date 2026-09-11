@@ -10,7 +10,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { DocumentType, OwnershipType } from '@prisma/client';
 import {
   IsIn,
@@ -64,7 +64,7 @@ class CreateApplicationDto {
 }
 
 @Controller('host-applications')
-@UseGuards(JwtGuard, RolesGuard, ThrottlerGuard)
+@UseGuards(JwtGuard, RolesGuard)
 @Roles('GUEST')
 export class HostApplicationsController {
   constructor(private apps: HostApplicationsService) {}
@@ -78,7 +78,10 @@ export class HostApplicationsController {
   @Post(':id/documents')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(
-    FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_FILE_SIZE } }),
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_FILE_SIZE, files: 1, fields: 1, parts: 2 },
+    }),
   )
   uploadDocument(
     @Param('id') id: string,

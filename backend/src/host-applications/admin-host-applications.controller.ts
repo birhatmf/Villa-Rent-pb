@@ -68,7 +68,8 @@ export class AdminHostApplicationsController {
     const { doc, path } = await this.apps.getDocumentFile(id, docId);
     res.set({
       'Content-Type': doc.mimeType,
-      'Content-Disposition': `inline; filename="${encodeURIComponent(doc.fileName)}"`,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(doc.fileName)}"`,
+      'X-Content-Type-Options': 'nosniff',
     });
     return new StreamableFile(createReadStream(path));
   }

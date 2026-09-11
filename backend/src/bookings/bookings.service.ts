@@ -17,6 +17,12 @@ import { paymentReference, prepaymentFor, readPaymentSettings, revealGuestContac
 const HOLD_MINUTES = 10;
 const MAX_ACTIVE_HOLDS = 5;
 
+const GUEST_CAPABILITY_STATUSES: readonly BookingStatus[] = ['REQUESTED', 'HOLD', 'CONFIRMED'];
+
+export function isGuestCapabilityActive(status: BookingStatus) {
+  return GUEST_CAPABILITY_STATUSES.includes(status);
+}
+
 const BOOKING_SELECT = {
   id: true,
   villaId: true,
@@ -247,7 +253,7 @@ export class BookingsService {
         // admin ekranı booking.status === 'DECLINED' görüp nedeni cancellationNote'tan okur.
         const declined = await tx.booking.update({
           where: { id },
-          data: { status: 'DECLINED', cancelledAt: now, cancellationNote: 'Tarihler artık müsait değil.', version: { increment: 1 } },
+          data: { status: 'DECLINED', cancelledAt: now, cancellationNote: 'Tarihler artık müsait değil.', version: { increment: 1 }, guestAccessVersion: { increment: 1 } },
           select: BOOKING_SELECT,
         });
         await this.audit(tx, declined, actorId, 'REQUEST_DECLINED', { status: booking.status }, { status: declined.status, reasons: result.reasons }, 'Tarihler artık müsait değil.');
@@ -285,7 +291,7 @@ export class BookingsService {
       if (booking.status !== 'REQUESTED') throw new ConflictException('Bu talep artık reddedilemez.');
       const updated = await tx.booking.update({
         where: { id },
-        data: { status: 'DECLINED', cancelledAt: now, cancellationNote: note.trim(), version: { increment: 1 } },
+        data: { status: 'DECLINED', cancelledAt: now, cancellationNote: note.trim(), version: { increment: 1 }, guestAccessVersion: { increment: 1 } },
         select: BOOKING_SELECT,
       });
       await this.audit(tx, updated, actorId, 'REQUEST_DECLINED', { status: booking.status }, { status: updated.status }, note.trim());
@@ -498,6 +504,7 @@ export class BookingsService {
           cancelledAt: now,
           cancellationNote: note.trim(),
           version: { increment: 1 },
+          guestAccessVersion: { increment: 1 },
         },
         select: BOOKING_SELECT,
       });
@@ -664,7 +671,7 @@ export class BookingsService {
       if (request.type === 'CANCELLATION') {
         const refundAmount = input.refundAmount ?? (request.booking.paymentStatus === 'PAID' ? request.booking.prepaymentAmount : 0);
         if (refundAmount > request.booking.prepaymentAmount) throw new BadRequestException('İade tutarı alınan kaporayı aşamaz.');
-        const cancelled = await tx.booking.update({ where: { id: request.bookingId }, data: { status: 'CANCELLED', cancelledAt: now, cancellationNote: input.resolutionNote?.trim() || 'İptal talebi onaylandı.', version: { increment: 1 } }, select: BOOKING_SELECT });
+        const cancelled = await tx.booking.update({ where: { id: request.bookingId }, data: { status: 'CANCELLED', cancelledAt: now, cancellationNote: input.resolutionNote?.trim() || 'İptal talebi onaylandı.', version: { increment: 1 }, guestAccessVersion: { increment: 1 } }, select: BOOKING_SELECT });
         await this.audit(tx, cancelled, actorId, 'BOOKING_CANCELLED', { status: 'CONFIRMED' }, { status: 'CANCELLED' }, cancelled.cancellationNote ?? undefined);
         await tx.bookingServiceRequest.updateMany({ where: { bookingId: request.bookingId, status: 'PENDING', id: { not: requestId } }, data: { status: 'REJECTED', resolutionNote: 'Rezervasyon iptal edildi.', resolvedAt: now, resolvedBy: actorId, version: { increment: 1 } } });
         return tx.bookingServiceRequest.update({
@@ -742,6 +749,7 @@ export class BookingsService {
           cancelledAt: now,
           cancellationNote: 'Misafir bekletmeyi bıraktı.',
           version: { increment: 1 },
+          guestAccessVersion: { increment: 1 },
         },
         select: BOOKING_SELECT,
       });
@@ -810,6 +818,25 @@ export class BookingsService {
     const booking = await this.prisma.booking.findFirst({ where: { id, guestId: null }, select: BOOKING_SELECT });
     if (!booking) throw new NotFoundException('Rezervasyon bulunamadı.');
     return this.ownResponse(booking, readPaymentSettings(await this.settings.get('payments')));
+  }
+
+  async guestCapabilityVersion(id: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, guestId: null },
+      select: { status: true, guestAccessVersion: true },
+    });
+    if (!booking || !isGuestCapabilityActive(booking.status)) {
+      throw new NotFoundException('Rezervasyon bulunamadı.');
+    }
+    return booking.guestAccessVersion;
+  }
+
+  async hasGuestCapability(id: string, version: number) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, guestId: null, guestAccessVersion: version },
+      select: { status: true },
+    });
+    return Boolean(booking && isGuestCapabilityActive(booking.status));
   }
 
   async listOwn(userId: string, input: OwnBookingListDto) {

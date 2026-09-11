@@ -681,8 +681,14 @@ export class IcalService implements OnModuleInit, OnModuleDestroy {
   }
 
   private encryptionKey() {
-    const secret = process.env.ICAL_ENCRYPTION_KEY ?? process.env.JWT_SECRET;
-    if (!secret || secret.length < 16) throw new BadRequestException('ICAL_ENCRYPTION_KEY yapılandırılmalı.');
+    const dedicated = process.env.ICAL_ENCRYPTION_KEY;
+    if (process.env.NODE_ENV === 'production' && !dedicated) {
+      throw new BadRequestException('Production ortamında ICAL_ENCRYPTION_KEY zorunludur.');
+    }
+    const secret = dedicated ?? process.env.JWT_SECRET;
+    if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
+      throw new BadRequestException('ICAL_ENCRYPTION_KEY en az 32 byte olmalıdır.');
+    }
     return createHash('sha256').update(secret).digest();
   }
 

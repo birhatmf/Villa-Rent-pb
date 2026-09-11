@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { Prisma, type ApplicationStatus, type DocumentType, type OwnershipType } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -10,6 +11,7 @@ import { existsSync } from 'fs';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
 import { PrismaService } from '../prisma.service';
+import { assertUploadSignature } from '../security/upload-signature';
 
 export const UPLOAD_ROOT = join(process.cwd(), 'uploads', 'host-applications');
 
@@ -19,6 +21,8 @@ const ALLOWED_MIME: Record<string, string> = {
   'image/png': '.png',
 };
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+export const MAX_DOCUMENTS_PER_APPLICATION = 20;
+export const MAX_DOCUMENT_BYTES_PER_APPLICATION = 100 * 1024 * 1024;
 
 export type CreateApplicationInput = {
   ownerName: string;
@@ -188,11 +192,6 @@ export class HostApplicationsService {
     file: Express.Multer.File,
     userId: string,
   ) {
-    const application = await this.prisma.hostApplication.findFirst({
-      where: { id: applicationId, linkedHostId: userId, status: 'PENDING' },
-      select: { id: true },
-    });
-    if (!application) throw new NotFoundException('Başvuru bulunamadı.');
     if (!file) throw new BadRequestException('Yüklenecek dosyayı seçin.');
 
     const ext = ALLOWED_MIME[file.mimetype];
@@ -202,24 +201,51 @@ export class HostApplicationsService {
     if (file.size > MAX_FILE_SIZE) {
       throw new BadRequestException('Dosya boyutu 10 MB’ı aşamaz.');
     }
+    assertUploadSignature(file.buffer, file.mimetype, ['application/pdf', 'image/jpeg', 'image/png']);
 
     const dir = join(UPLOAD_ROOT, applicationId);
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
     // Rastgele ad: orijinal dosya adı (Türkçe karakter, path traversal riski) diske hiç yazılmaz.
     const storedName = `${randomUUID()}${ext}`;
-    await writeFile(join(dir, storedName), file.buffer);
+    const storedPath = join(dir, storedName);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "HostApplication" WHERE id = ${applicationId} FOR UPDATE`;
+        const application = await tx.hostApplication.findFirst({
+          where: { id: applicationId, linkedHostId: userId, status: 'PENDING' },
+          select: { id: true },
+        });
+        if (!application) throw new NotFoundException('Başvuru bulunamadı.');
 
-    return this.prisma.hostApplicationDocument.create({
-      data: {
-        applicationId,
-        type,
-        fileName: file.originalname.slice(0, 200),
-        storedName,
-        mimeType: file.mimetype,
-        size: file.size,
-      },
-    });
+        const usage = await tx.hostApplicationDocument.aggregate({
+          where: { applicationId },
+          _count: { _all: true },
+          _sum: { size: true },
+        });
+        if (
+          usage._count._all >= MAX_DOCUMENTS_PER_APPLICATION ||
+          (usage._sum.size ?? 0) + file.size > MAX_DOCUMENT_BYTES_PER_APPLICATION
+        ) {
+          throw new PayloadTooLargeException('Başvuru belge kotası aşıldı.');
+        }
+
+        await writeFile(storedPath, file.buffer, { flag: 'wx' });
+        return tx.hostApplicationDocument.create({
+          data: {
+            applicationId,
+            type,
+            fileName: file.originalname.slice(0, 200),
+            storedName,
+            mimeType: file.mimetype,
+            size: file.size,
+          },
+        });
+      });
+    } catch (error) {
+      await unlink(storedPath).catch(() => {});
+      throw error;
+    }
   }
 
   async getDocumentFile(applicationId: string, documentId: string) {

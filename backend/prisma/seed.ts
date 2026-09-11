@@ -283,11 +283,12 @@ async function main() {
   await prisma.user.upsert({
     where: { email },
     // update'te de rol var: var olan admin kaydı GUEST'e düşmesin.
-    update: { role: 'ADMIN', active: true },
+    update: { role: 'ADMIN', active: true, isPrimaryAdmin: true },
     create: {
       email,
       name: 'Yönetici',
       role: 'ADMIN',
+      isPrimaryAdmin: true,
       passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD ?? 'admin1234', 10),
     },
   });

@@ -83,9 +83,16 @@ eksik sayfaları ekler, mevcut veriye dokunmaz ve tekrar çalıştırılabilir:
 npx prisma db execute --file prisma/sql/20260908_info_pages.sql --schema prisma/schema.prisma
 ```
 
+`20260911_security_hardening.sql`, ilk yönetici hesabını `isPrimaryAdmin` ile
+korur ve üyesiz rezervasyon erişim anahtarlarının sürümle iptal edilmesini sağlar:
+
+```sh
+npx prisma db execute --file prisma/sql/20260911_security_hardening.sql --schema prisma/schema.prisma
+```
+
 Sayfalar oluşturulduktan sonra canlı içerik `/admin/pages` üzerinden yönetilir;
 bu dosya yalnızca ilk yükleme içindir.
 
-iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 16 karakterlik, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Tanımlı değilse mevcut `JWT_SECRET` kullanılır; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
+iCal kaynak URL'leri veritabanında AES-256-GCM ile şifrelenir. Üretimde en az 32 byte, JWT'den ayrı, yedeklenen ve yalnızca backend tarafından bilinen `ICAL_ENCRYPTION_KEY` tanımlanmalıdır. Geliştirmede kolaylık için eksikse `JWT_SECRET` kullanılabilir; anahtar kaybolursa kayıtlı kaynak URL'leri çözülemez.
 
 Kalıcı Prisma Migrate geçmişine geçerken önce mevcut şema için baseline oluşturulup bu migration uygulanmış olarak işaretlenmelidir. Canlı veritabanı resetlenmez ve veri silen seed komutu kullanılmaz.

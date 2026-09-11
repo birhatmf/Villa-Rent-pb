@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
+import { hashSecurityIdentity, securityEvent } from '../security/security-event';
 
 const SAFE_USER = {
   id: true,
@@ -27,6 +28,14 @@ export type UpdateProfileInput = { name?: string; phone?: string };
 
 const INVALID_PASSWORD_HASH = '$2b$10$QM.2grzBHsuv89FapNwrluod/a6JF30x1MWsGSi9NnhdYdvoswmd2';
 
+export function assertBcryptPasswordLength(password: string) {
+  // bcrypt yalnızca ilk 72 byte'ı işler; Unicode karakterleri byte bazında
+  // sınırlamak, kullanıcının fark etmeden kısaltılmış bir parola oluşturmasını önler.
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    throw new BadRequestException('Şifre UTF-8 olarak 72 byte’tan kısa olmalıdır.');
+  }
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -46,6 +55,7 @@ export class AuthService {
   }
 
   async register(input: RegisterInput) {
+    assertBcryptPasswordLength(input.password);
     const email = input.email.trim().toLowerCase();
     let user: Prisma.UserGetPayload<{ select: typeof SAFE_USER }>;
     try {
@@ -64,7 +74,9 @@ export class AuthService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Bu e‑posta adresi zaten kayıtlı.');
+        // Public response intentionally does not reveal whether the address is
+        // already registered; the account-specific throttler limits probing.
+        throw new ConflictException('Kayıt işlemi tamamlanamadı.');
       }
       throw error;
     }
@@ -83,8 +95,14 @@ export class AuthService {
     // e‑postanın kayıtlı olup olmadığını sızdırmasın.
     const hash = user?.passwordHash ?? INVALID_PASSWORD_HASH;
     const ok = await bcrypt.compare(password, hash);
-    if (!user || !ok) throw new UnauthorizedException('E‑posta veya şifre hatalı.');
-    if (!user.active) throw new UnauthorizedException('Hesabınız devre dışı bırakılmış.');
+    if (!user || !ok) {
+      securityEvent('auth_login_failed', { identityHash: hashSecurityIdentity(email), reason: 'invalid_credentials' });
+      throw new UnauthorizedException('E‑posta veya şifre hatalı.');
+    }
+    if (!user.active) {
+      securityEvent('auth_login_failed', { identityHash: hashSecurityIdentity(email), reason: 'inactive_account' });
+      throw new UnauthorizedException('Hesabınız devre dışı bırakılmış.');
+    }
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -96,6 +114,16 @@ export class AuthService {
       token: await this.sign(user),
       user: safe,
     };
+  }
+
+  /** Yalnızca çerezleri sunucu tarafında geçersiz kılar: sessionVersion artışı, o an
+   *  ele geçirilmiş olabilecek JWT'lerin (ör. XSS/cihaz hırsızlığı) süresi dolmadan
+   *  önce reddedilmesini sağlar (bkz. RolesGuard: req.user.sv !== user.sessionVersion). */
+  async invalidateSession(userId: string) {
+    await this.prisma.user.updateMany({
+      where: { id: userId },
+      data: { sessionVersion: { increment: 1 } },
+    });
   }
 
   async me(userId: string) {
@@ -123,6 +151,8 @@ export class AuthService {
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    assertBcryptPasswordLength(currentPassword);
+    assertBcryptPasswordLength(newPassword);
     if (currentPassword === newPassword) {
       throw new BadRequestException('Yeni şifre mevcut şifreden farklı olmalı.');
     }

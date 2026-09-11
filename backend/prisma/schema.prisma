@@ -30,6 +30,8 @@ model User {
   passwordHash   String
   role           Role      @default(GUEST)
   active         Boolean   @default(true)
+  /// Bootstrap ile oluşturulan ilk yönetici; rolü/pasifliği/silinmesi kilitlidir.
+  isPrimaryAdmin Boolean   @default(false)
   kvkkAcceptedAt DateTime?
   marketingOptIn Boolean   @default(false)
   lastLoginAt    DateTime?
@@ -48,6 +50,7 @@ model User {
   moderatedReviews   Review[]                @relation("ReviewModerator")
 
   @@index([role, active])
+  @@index([isPrimaryAdmin])
   @@index([createdAt])
 }
 
@@ -470,6 +473,9 @@ model Booking {
   idempotencyKey   String
   requestHash      String
   version          Int    @default(0)
+  /// Üyesiz rezervasyon çerezleri bu sürümü taşır; iptal/ret/süre dolumunda
+  /// artırılarak daha önce verilmiş erişim anahtarları anında geçersiz kılınır.
+  guestAccessVersion Int  @default(0)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)

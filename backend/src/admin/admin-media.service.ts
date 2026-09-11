@@ -3,23 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { assertUploadSignature } from '../security/upload-signature';
 
-const TYPES: Record<string, { extension: string; valid: (buffer: Buffer) => boolean }> = {
-  'image/jpeg': {
-    extension: '.jpg',
-    valid: (buffer) => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff,
-  },
-  'image/png': {
-    extension: '.png',
-    valid: (buffer) => buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
-  },
-  'image/webp': {
-    extension: '.webp',
-    valid: (buffer) =>
-      buffer.length >= 12 &&
-      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-      buffer.subarray(8, 12).toString('ascii') === 'WEBP',
-  },
+const TYPES: Record<string, { extension: string }> = {
+  'image/jpeg': { extension: '.jpg' },
+  'image/png': { extension: '.png' },
+  'image/webp': { extension: '.webp' },
 };
 
 export const MAX_CONTENT_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -33,9 +22,10 @@ export class AdminMediaService {
     if (file.size > MAX_CONTENT_IMAGE_SIZE) throw new BadRequestException('Dosya boyutu 15 MB’ı aşamaz.');
 
     const type = TYPES[file.mimetype];
-    if (!type || !type.valid(file.buffer)) {
+    if (!type) {
       throw new BadRequestException('Yalnızca geçerli JPG, PNG veya WebP görsel yükleyebilirsiniz.');
     }
+    assertUploadSignature(file.buffer, file.mimetype, ['image/jpeg', 'image/png', 'image/webp']);
 
     const now = new Date();
     const year = String(now.getUTCFullYear());

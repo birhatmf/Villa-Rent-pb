@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import type { Request } from 'express';
@@ -97,8 +98,12 @@ export class HostVillasController {
   }
 
   @Post(':id/images')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseInterceptors(
-    FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_IMAGE_SIZE } }),
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_IMAGE_SIZE, files: 1, fields: 3, parts: 4 },
+    }),
   )
   uploadImage(
     @Param('id') id: string,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaService } from './prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { AdminController } from './admin/admin.controller';
@@ -49,12 +50,25 @@ import {
   PublicReviewsController,
 } from './reviews/reviews.controller';
 import { ReviewsService } from './reviews/reviews.service';
+import {
+  GLOBAL_RATE_LIMIT,
+  isLoginRequest,
+  LOGIN_ACCOUNT_RATE_LIMIT,
+  loginAccountTracker,
+} from './security/rate-limit';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Varsayılan gevşek; dar limit auth ve host-application uçlarında @Throttle ile veriliyor.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot([
+      { name: 'default', ...GLOBAL_RATE_LIMIT },
+      {
+        name: 'loginAccount',
+        ...LOGIN_ACCOUNT_RATE_LIMIT,
+        skipIf: (context) => !isLoginRequest(context),
+        getTracker: loginAccountTracker,
+      },
+    ]),
     AuthModule,
   ],
   controllers: [
@@ -95,6 +109,7 @@ import { ReviewsService } from './reviews/reviews.service';
     AdminReviewsController,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     PrismaService,
     PagesService,
     AdminService,

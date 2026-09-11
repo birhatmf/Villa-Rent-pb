@@ -10,6 +10,16 @@
     "test:payment": "ts-node test/payment-unit.ts",
     "test:booking-concurrency": "ts-node test/booking-concurrency.ts",
     "test:customer-access": "ts-node test/customer-access.ts",
+    "test:favorites-security": "ts-node test/favorites-security.ts",
+    "test:upload-quota-security": "ts-node test/upload-quota-security.ts",
+    "test:jwt-config-security": "ts-node test/jwt-config-security.ts",
+    "test:rate-limit-security": "ts-node test/rate-limit-security.ts",
+    "test:owner-moderation-security": "ts-node test/owner-moderation-security.ts",
+    "test:upload-signature-security": "ts-node test/upload-signature-security.ts",
+    "test:guest-capability-security": "ts-node test/guest-capability-security.ts",
+    "test:primary-admin-security": "ts-node test/primary-admin-security.ts",
+    "test:csrf-origin-security": "ts-node test/csrf-origin-security.ts",
+    "test:password-length-security": "ts-node test/password-length-security.ts",
     "test:reviews": "ts-node test/reviews-unit.ts",
     "test:ical-parser": "ts-node test/ical-parser.ts",
     "test:ical-security": "ts-node test/ical-security.ts",
@@ -17,7 +27,8 @@
     "db:push": "prisma db push",
     "db:create-admin": "node --env-file=.env -r ts-node/register prisma/create-admin.ts",
     "db:seed": "ts-node prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:verify-security-schema": "ts-node prisma/verify-security-schema.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -34,6 +45,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
+    "helmet": "^8.3.0",
     "ical.js": "^2.2.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -48,5 +60,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "multer": "^2.3.0"
   }
 }

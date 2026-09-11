@@ -24,14 +24,19 @@ async function main() {
     return;
   }
 
-  await prisma.user.create({
-    data: {
-      email,
-      name,
-      role: 'ADMIN',
-      active: true,
-      passwordHash: await bcrypt.hash(password, 12),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('my_villa_bootstrap_admin'))`;
+    const adminCount = await tx.user.count({ where: { role: 'ADMIN' } });
+    await tx.user.create({
+      data: {
+        email,
+        name,
+        role: 'ADMIN',
+        active: true,
+        isPrimaryAdmin: adminCount === 0,
+        passwordHash: await bcrypt.hash(password, 12),
+      },
+    });
   });
   console.log(`Admin hesabı oluşturuldu: ${email}`);
 }

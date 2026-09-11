@@ -61,7 +61,7 @@ export class OccupancyService {
             });
             await tx.booking.updateMany({
               where: { id: { in: expired.map((booking) => booking.id) } },
-              data: { status: 'EXPIRED', version: { increment: 1 } },
+              data: { status: 'EXPIRED', version: { increment: 1 }, guestAccessVersion: { increment: 1 } },
             });
             if (expired.length) {
               await tx.calendarAudit.createMany({

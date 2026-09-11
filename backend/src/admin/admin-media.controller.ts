@@ -13,7 +13,10 @@ export class AdminMediaController {
 
   @Post('images')
   @UseInterceptors(
-    FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: MAX_CONTENT_IMAGE_SIZE } }),
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_CONTENT_IMAGE_SIZE, files: 1, fields: 0, parts: 1 },
+    }),
   )
   uploadImage(@UploadedFile() file?: Express.Multer.File) {
     return this.media.uploadImage(file);

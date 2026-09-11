@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Headers, NotFoundException, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { IsEmail, IsString, Length } from 'class-validator';
 import type { Request, Response } from 'express';
 import { StayDto } from './dto';
@@ -14,15 +14,14 @@ class GuestBookingDto extends StayDto {
 }
 
 const cookieName = (id: string) => `mv_guest_booking_${id}`;
-const COOKIE_OPTIONS = {
+const COOKIE_BASE = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: process.env.NODE_ENV === 'production',
-  maxAge: 180 * 24 * 60 * 60 * 1000,
 };
+const GUEST_ACCESS_DAYS = 30;
 
 @Controller('guest-bookings')
-@UseGuards(ThrottlerGuard)
 export class GuestBookingsController {
   constructor(
     private bookings: BookingsService,
@@ -66,20 +65,38 @@ export class GuestBookingsController {
   }
 
   @Delete(':id/hold')
-  async releaseHold(@Param('id') id: string, @Req() req: Request) {
+  async releaseHold(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await this.authorize(id, req);
-    return this.bookings.releaseGuestHold(id);
+    const result = await this.bookings.releaseGuestHold(id);
+    res.clearCookie(cookieName(id), { ...COOKIE_BASE, path: `/api/guest-bookings/${id}` });
+    return result;
   }
 
   private async grant(bookingId: string, res: Response) {
-    const token = await this.jwt.signAsync({ kind: 'guest-booking', bookingId }, { expiresIn: '180d' });
-    res.cookie(cookieName(bookingId), token, { ...COOKIE_OPTIONS, path: `/api/guest-bookings/${bookingId}` });
+    const guestAccessVersion = await this.bookings.guestCapabilityVersion(bookingId);
+    const token = await this.jwt.signAsync(
+      { kind: 'guest-booking', bookingId, guestAccessVersion },
+      { expiresIn: `${GUEST_ACCESS_DAYS}d` },
+    );
+    res.cookie(cookieName(bookingId), token, {
+      ...COOKIE_BASE,
+      maxAge: GUEST_ACCESS_DAYS * 24 * 60 * 60 * 1000,
+      path: `/api/guest-bookings/${bookingId}`,
+    });
   }
 
   private async authorize(bookingId: string, req: Request) {
     try {
-      const payload = await this.jwt.verifyAsync<{ kind: string; bookingId: string }>(req.cookies?.[cookieName(bookingId)]);
+      const payload = await this.jwt.verifyAsync<{ kind: string; bookingId: string; guestAccessVersion: number }>(
+        req.cookies?.[cookieName(bookingId)],
+      );
       if (payload.kind !== 'guest-booking' || payload.bookingId !== bookingId) throw new Error('invalid');
+      if (!Number.isInteger(payload.guestAccessVersion)) throw new Error('invalid');
+      if (!(await this.bookings.hasGuestCapability(bookingId, payload.guestAccessVersion))) throw new Error('revoked');
     } catch {
       throw new NotFoundException('Rezervasyon bulunamadı.');
     }

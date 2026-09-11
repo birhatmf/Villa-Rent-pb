@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import {
   IsBoolean,
   IsEmail,
@@ -11,6 +11,7 @@ import {
   Equals,
 } from 'class-validator';
 import type { Request, Response } from 'express';
+import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { JwtGuard, TOKEN_COOKIE } from './jwt.guard';
 import { RolesGuard } from './roles.guard';
@@ -105,9 +106,11 @@ function clearSession(res: Response) {
 }
 
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(
+    private auth: AuthService,
+    private jwt: JwtService,
+  ) {}
 
   @Post('register')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -126,7 +129,20 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // Çerezi silmek istemci tarafında oturumu kapatır, ama JWT süresi (7 gün)
+    // dolana kadar ele geçirilmiş bir token yine geçerli kalırdı. sessionVersion'ı
+    // artırarak token'ı sunucu tarafında da anında geçersiz kılıyoruz
+    // (RolesGuard her istekte req.user.sv'yi DB'deki sessionVersion ile karşılaştırır).
+    const token = req.cookies?.[TOKEN_COOKIE] ?? req.headers.authorization?.replace(/^Bearer /i, '');
+    if (token) {
+      try {
+        const payload = await this.jwt.verifyAsync<{ sub: string }>(token);
+        if (payload?.sub) await this.auth.invalidateSession(payload.sub);
+      } catch {
+        // Süresi dolmuş/geçersiz token: iptal edilecek bir oturum yok, sessizce yut.
+      }
+    }
     clearSession(res);
     return { ok: true };
   }

@@ -94,6 +94,50 @@ export type ListParams = {
 
 export type PublicSort = 'yeni' | 'fiyat_artan' | 'fiyat_azalan';
 
+/** Owner değiştirirse ilan içeriğinin tekrar editoryal incelemeden geçmesi gereken alanlar. */
+export const MODERATED_VILLA_FIELDS: readonly (keyof VillaInput)[] = [
+  'title',
+  'summary',
+  'regionId',
+  'district',
+  'buildingType',
+  'permitNumber',
+  'maxAdults',
+  'maxChildren',
+  'maxInfants',
+  'bedrooms',
+  'bathrooms',
+  'poolType',
+  'poolSecluded',
+  'poolHeated',
+  'poolHeatingIncluded',
+  'poolHeatingFeePerDay',
+  'poolHasChildPool',
+  'poolLengthM',
+  'poolWidthM',
+  'poolDepthM',
+  'wifiMbps',
+  'beachDistanceM',
+  'nearCenter',
+  'viewTags',
+  'amenities',
+  'petPolicy',
+  'petNote',
+  'familiesOnly',
+  'allowSingleMaleGroups',
+  'allowYoungGroups',
+  'eventsAllowed',
+  'smokingAllowed',
+  'customRules',
+  'videoUrl',
+  'rooms',
+  'conceptIds',
+];
+
+export function ownerEditNeedsReview(status: VillaStatus, input: Partial<VillaInput>, isOwner: boolean) {
+  return isOwner && status === 'PUBLISHED' && MODERATED_VILLA_FIELDS.some((field) => Object.hasOwn(input, field));
+}
+
 /** Halka açık listeleme parametreleri — `status`/`hostId` bilinçli olarak YOK. */
 export type PublicListParams = {
   q?: string;
@@ -648,6 +692,7 @@ export class VillasService {
       const before = await tx.villa.findUniqueOrThrow({
         where: { id },
         select: {
+          status: true,
           pricePerNight: true,
           minNights: true,
           checkInWeekday: true,
@@ -656,6 +701,7 @@ export class VillasService {
           depositAmount: true,
         },
       });
+      const needsReview = ownerEditNeedsReview(before.status, input, Boolean(hostId));
       if (rooms) {
         await tx.villaRoom.deleteMany({ where: { villaId: id } });
         if (rooms.length) {
@@ -669,6 +715,9 @@ export class VillasService {
         data: {
           ...this.mapScalars(rest),
           concepts: conceptIds ? { set: conceptIds.map((id) => ({ id })) } : undefined,
+          ...(needsReview
+            ? { status: 'PENDING_REVIEW', reviewedAt: null, reviewedBy: null, reviewNote: null }
+            : {}),
         },
         include: DETAIL_INCLUDE,
       });
@@ -697,6 +746,20 @@ export class VillasService {
               cleaningFeeThresholdNights: updated.cleaningFeeThresholdNights,
               depositAmount: updated.depositAmount,
             },
+          },
+        });
+      }
+      if (needsReview) {
+        await tx.calendarAudit.create({
+          data: {
+            villaId: id,
+            actorId,
+            entityType: 'VILLA',
+            entityId: id,
+            action: 'VILLA_STATUS_CHANGED',
+            reason: 'Owner yayın içeriğini değiştirdi; yeniden inceleme gerekli.',
+            before: { status: before.status },
+            after: { status: 'PENDING_REVIEW' },
           },
         });
       }
