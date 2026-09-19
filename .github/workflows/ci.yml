@@ -54,6 +54,8 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script: |
             set -e
+            export PATH=$PATH:/usr/local/bin:/usr/bin:~/.npm-global/bin
+            source ~/.bashrc 2>/dev/null || true
             echo "=== Dağıtım Başladı: $(date) ==="
             cd /home/birhatmff/villa-realestate-rent
 
@@ -65,7 +67,6 @@ jobs:
             cd /home/birhatmff/villa-realestate-rent/backend
             npm install --legacy-peer-deps
             npx prisma generate
-            npx prisma migrate deploy
             npm run build
 
             echo "--- Frontend Güncelleniyor ---"
@@ -75,6 +76,6 @@ jobs:
 
             echo "--- PM2 Servisleri Yeniden Başlatılıyor ---"
             cd /home/birhatmff/villa-realestate-rent
-            pm2 reload ecosystem.config.js --update-env || pm2 restart ecosystem.config.js
+            pm2 reload ecosystem.config.js --update-env || pm2 restart ecosystem.config.js || npx pm2 reload ecosystem.config.js
 
             echo "=== Dağıtım Başarıyla Tamamlandı! ==="
