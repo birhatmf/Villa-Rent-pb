@@ -37,8 +37,4 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
-<<<<<<< HEAD
         run: npm run build
-=======
-        run: npm run build
->>>>>>> 660a2bafb13c264f4bcaedab60f2db52dfe98afe
